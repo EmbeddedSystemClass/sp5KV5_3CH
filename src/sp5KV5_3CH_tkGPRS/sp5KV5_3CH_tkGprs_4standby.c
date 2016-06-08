@@ -26,16 +26,17 @@ static int gTR_D13(void);
 static int gTR_D14(void);
 static int gTR_D15(void);
 static int gTR_D16(void);
+static int gTR_D17(void);
 
 // Eventos locales
 typedef enum {
 	d_ev_CTIMER_NOT_0 = 0,
-	d_ev_MSGRELOAD,
 	d_ev_NEXT_FRAME_INIT,
 	d_ev_NEXT_FRAME_CONF,
 	d_ev_NEXT_FRAME_DATA,
 	d_ev_SOCK_IS_OPEN,
 	d_ev_PWRCONTINUO,
+	d_ev_LOTE_END,
 
 } t_eventos_ssStandby;
 
@@ -55,13 +56,18 @@ u08 i;
 	}
 
 	// Evaluo solo los eventos del estado STANDBY.
-	if ( GPRS_stateVars.flags.msgReload == TRUE ) { d_eventos[d_ev_MSGRELOAD] = TRUE; }
 	if ( cTimer > 0 ) { d_eventos[d_ev_CTIMER_NOT_0] = TRUE; }
 	if ( systemVars.pwrMode == PWR_CONTINUO ) { d_eventos[d_ev_PWRCONTINUO] = TRUE; }
-	if ( GPRS_stateVars.flags.socketStatus ==SOCKET_OPEN ) { d_eventos[d_ev_SOCK_IS_OPEN] = TRUE; }
+	if ( GPRS_stateVars.flags.socketStatus == SOCKET_OPEN ) { d_eventos[d_ev_SOCK_IS_OPEN] = TRUE; }
 	if ( GPRS_stateVars.state.nextFrame == INIT_FRAME ) { d_eventos[d_ev_NEXT_FRAME_INIT] = TRUE; }
 	if ( GPRS_stateVars.state.nextFrame == CONF_FRAME ) { d_eventos[d_ev_NEXT_FRAME_CONF] = TRUE; }
 	if ( GPRS_stateVars.state.nextFrame == DATA_FRAME ) { d_eventos[d_ev_NEXT_FRAME_DATA] = TRUE; }
+	if ( GPRS_stateVars.counters.nroLOTEtryes == 1) { d_eventos[d_ev_LOTE_END] = TRUE; }
+
+	// MSG RELOAD
+	if ( g_checkReloadConfig(gST_STANDBY) ) {
+		return;
+	}
 
 	// Corro la FSM
 	switch ( GPRS_stateVars.state.subState ) {
@@ -83,7 +89,9 @@ u08 i;
 		}
 		break;
 	case gSST_STANDBY_03:
-		if ( d_eventos[d_ev_NEXT_FRAME_CONF] ) {
+		if ( d_eventos[d_ev_LOTE_END] ) {
+			GPRS_stateVars.state.subState = gTR_D17();
+		} else if ( d_eventos[d_ev_NEXT_FRAME_CONF] ) {
 			GPRS_stateVars.state.subState = gTR_D05();
 		} else {
 			GPRS_stateVars.state.subState = gTR_D08();
@@ -280,6 +288,14 @@ static int gTR_D15(void)
 		vTaskDelay( ( TickType_t)( 1000 / portTICK_RATE_MS ) );
 	}
 
+	// TILT ??
+	if ( u_checkAlarmFloding() ) {
+		snprintf_P( gprs_printfBuff,sizeof(gprs_printfBuff),PSTR("Tilt: going off...\r\n\0" ));
+		u_debugPrint(D_GPRS, gprs_printfBuff, sizeof(gprs_printfBuff) );
+		g_printExitMsg("D15\0");
+		return( pv_cambiarEstado(gST_STANDBY,gST_MODEMAPAGADO) );
+	}
+
 	//g_printExitMsg("D15\0");
 	return(gSST_STANDBY_08);
 }
@@ -291,4 +307,16 @@ static int gTR_D16(void)
 	return(gSST_STANDBY_01);
 }
 //------------------------------------------------------------------------------------
+static int gTR_D17(void)
+{
 
+	// Maximo intento de envio del lote
+
+	// DebugMsg
+	snprintf_P( gprs_printfBuff,sizeof(gprs_printfBuff),PSTR("Modem going off: maximo intento de lote\r\n\0" ));
+	u_debugPrint(D_GPRS, gprs_printfBuff, sizeof(gprs_printfBuff) );
+
+	g_printExitMsg("D17\0");
+	return( pv_cambiarEstado(gST_STANDBY,gST_MODEMAPAGADO) );
+}
+//------------------------------------------------------------------------------------

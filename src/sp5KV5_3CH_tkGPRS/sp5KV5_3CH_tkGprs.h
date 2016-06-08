@@ -82,6 +82,9 @@ typedef enum {
 
 	gSST_DATAFRAME_00,
 	gSST_DATAFRAME_01,
+	gSST_DATAFRAME_02,
+	gSST_DATAFRAME_03,
+	gSST_DATAFRAME_04,
 
 } t_tkGprs_subState;
 
@@ -103,9 +106,9 @@ typedef struct {
 typedef struct {
 	u32 cTimer;
 	u08 txRcdsInWindow;
-	u32 secs;
+	u32 awaitSecs;
 	u08 nroINITS;
-	u08 nroCONFIGS;
+	u08 nroLOTEtryes;
 } GPRS_counters;
 
 typedef struct {
@@ -128,6 +131,7 @@ struct {
 
 
 #define FRAMEXTXWINDOW	10		// Registros por frameWindow.
+#define MAXTRYESLOTE	4
 
 char gprs_printfBuff[CHAR256];
 char gprsRX_printfBuff[CHAR256];
@@ -160,5 +164,6 @@ u08 g_GPRSprocessAch(u08 channel);
 u08 g_GPRSprocessDch(u08 channel);
 u08 g_GPRSprocessTilt(void);
 void g_GPRSprocessReset(void);
+s08 g_checkReloadConfig(t_tkGprs_state gprsState );
 
 #endif /* SP5KV5_3CH_TKGPRS_SP5KV5_3CH_TKGPRS_H_ */

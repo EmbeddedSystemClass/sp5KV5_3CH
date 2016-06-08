@@ -5,8 +5,6 @@
  *      Author: pablo
  *
  * En este estado prendo el modem y lo dejo pronto para aceptar comadnos.
- * No considero una reconfiguracion ya que ninguno de los parametros
- * configurables a distancia se utilizan.
  *
  */
 
@@ -62,6 +60,11 @@ u08 i;
 	if ( Ctimer > 0 ) { b_eventos[b_ev_CTIMER_NOT_0] = TRUE; }
 	// Modem response OK
 	if ( GPRS_stateVars.flags.modemResponse ==  MRSP_OK ) { b_eventos[b_ev_M_RSP_OK] = TRUE; }
+
+	// MSG RELOAD
+	if ( g_checkReloadConfig(gST_MODEMPRENDIENDO) ) {
+		return;
+	}
 
 	// Corro la FSM
 	switch ( GPRS_stateVars.state.subState ) {

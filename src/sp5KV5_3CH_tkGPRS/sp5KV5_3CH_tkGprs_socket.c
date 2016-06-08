@@ -3,6 +3,10 @@
  *
  *  Created on: 23 de may. de 2016
  *      Author: pablo
+ *
+ *  Respecto del RELOAD_MSG, no lo considero en este estado ya que luego
+ *  de mandar el INIT, se vuelve al estado STANDBY donde si se controla.
+ *
  */
 
 
@@ -25,11 +29,11 @@ static int gTR_E11(void);
 static int gTR_E12(void);
 static int gTR_E13(void);
 static int gTR_E14(void);
+static int gTR_E15(void);
 
 // Eventos locales
 typedef enum {
 	e_ev_CTIMER_NOT_0 = 0,
-	e_ev_MSGRELOAD,
 	e_ev_SOCK_IS_OPEN,
 	e_ev_P_TRYES_NOT_0,
 	e_ev_Q_TRYES_NOT_0,
@@ -37,7 +41,7 @@ typedef enum {
 
 } t_eventos_ssSocket;
 
-#define sm_SOCKET_EVENT_COUNT 6
+#define sm_SOCKET_EVENT_COUNT 5
 
 static u08 cTimer;
 static u08 pTryes;
@@ -54,13 +58,17 @@ u08 i;
 		e_eventos[i] = FALSE;
 	}
 
-	// Evaluo solo los eventos del estado STANDBY.
-	if ( GPRS_stateVars.flags.msgReload == TRUE ) { e_eventos[e_ev_MSGRELOAD] = TRUE; }
-	if ( GPRS_stateVars.flags.socketStatus ==SOCKET_OPEN ) { e_eventos[e_ev_SOCK_IS_OPEN] = TRUE; }
+	// Evaluo solo los eventos del estado SOCKET.
+	if ( GPRS_stateVars.flags.socketStatus == SOCKET_OPEN ) { e_eventos[e_ev_SOCK_IS_OPEN] = TRUE; }
 	if (  GPRS_stateVars.flags.modemResponse == MRSP_ERROR ) { e_eventos[e_ev_M_RSP_ERROR] = TRUE; }
 	if ( cTimer > 0 ) { e_eventos[e_ev_CTIMER_NOT_0] = TRUE; }
 	if ( pTryes > 0 ) { e_eventos[e_ev_P_TRYES_NOT_0] = TRUE; }
 	if ( qTryes > 0 ) { e_eventos[e_ev_Q_TRYES_NOT_0] = TRUE; }
+
+	// MSG RELOAD
+	if ( g_checkReloadConfig(gST_OPENSOCKET) ) {
+		return;
+	}
 
 	// Corro la FSM
 	switch ( GPRS_stateVars.state.subState ) {
@@ -85,7 +93,9 @@ u08 i;
 		GPRS_stateVars.state.subState = gTR_E05();
 		break;
 	case gSST_OPENSOCKET_04:
-		if ( e_eventos[e_ev_CTIMER_NOT_0] ) {
+		if ( e_eventos[e_ev_SOCK_IS_OPEN] ) {
+			GPRS_stateVars.state.subState = gTR_E15();
+		} else if ( e_eventos[e_ev_CTIMER_NOT_0] ) {
 			GPRS_stateVars.state.subState = gTR_E06();
 		} else {
 			GPRS_stateVars.state.subState = gTR_E07();
@@ -94,7 +104,7 @@ u08 i;
 	case gSST_OPENSOCKET_05:
 		if ( e_eventos[e_ev_SOCK_IS_OPEN] ) {
 			GPRS_stateVars.state.subState = gTR_E13();
-		} else if ( e_eventos[e_ev_SOCK_IS_OPEN] ) {
+		} else if ( e_eventos[e_ev_M_RSP_ERROR] ) {
 			GPRS_stateVars.state.subState = gTR_E14();
 		} else {
 			GPRS_stateVars.state.subState = gTR_E08();
@@ -243,12 +253,12 @@ size_t pos;
 
 	if ( g_strstr("CONNECT\0", &pos ) == TRUE ) {
 		GPRS_stateVars.flags.modemResponse = MRSP_CREG;
-		GPRS_stateVars.flags.socketStatus = SOCKET_OPEN;
+		g_setSocketStatus(SOCKET_OPEN);
 	}
 
 	if ( g_strstr("ERROR\0", &pos ) == TRUE ) {
 		GPRS_stateVars.flags.modemResponse = MRSP_ERROR;
-		GPRS_stateVars.flags.socketStatus = SOCKET_CLOSED;
+		g_setSocketStatus(SOCKET_CLOSED);
 	}
 
 	g_printRxBuffer();
@@ -323,4 +333,11 @@ static int gTR_E14(void)
 	return(gSST_OPENSOCKET_07);
 }
 //------------------------------------------------------------------------------------
+static int gTR_E15(void)
+{
+	// El socket abrio: cambio de estado volviendo al STANDBY
 
+	g_printExitMsg("E15\0");
+	return( pv_cambiarEstado(gST_OPENSOCKET, gST_STANDBY) );
+}
+//------------------------------------------------------------------------------------

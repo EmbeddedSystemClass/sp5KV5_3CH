@@ -6,6 +6,7 @@
  */
 
 #include "sp5KV5_3CH.h"
+#include "sp5KV5_3CH_tkGprs.h"
 
 u08 pv_paramLoad(u08* data, u08* addr, u16 sizebytes);
 u08 pv_paramStore(u08* data, u08* addr, u16 sizebytes);
@@ -275,11 +276,15 @@ u08 channel;
 	systemVars.roaming = FALSE;
 
 	// DEBUG
-	systemVars.debugLevel = D_BASIC;
+	systemVars.debugLevel = D_BASIC + D_GPRS;
 
 	strncpy_P(systemVars.serverAddress, PSTR("192.168.0.9\0"),IP_LENGTH);
 	systemVars.timerPoll = 30;			// Poleo c/5 minutos
 	systemVars.timerDial = 1800;		// Transmito c/3 hs.
+
+	systemVars.pwrSave = modoPWRSAVE_OFF;
+	systemVars.pwrSaveStartTime =u_convertHHMM2min(2230);	// 22:30 PM
+	systemVars.pwrSaveEndTime =	u_convertHHMM2min(630);		// 6:30 AM
 
 	// Todos los canales quedan por default en 0-20mA, 0-6k.
 	for ( channel = 0; channel < NRO_ANALOG_CHANNELS ; channel++) {
@@ -301,6 +306,17 @@ u08 channel;
 
 	// Detector de Tilt.
 	systemVars.tiltEnabled = FALSE;
+
+	// Consignas
+	systemVars.consigna.type = CONSIGNA_OFF;
+	systemVars.consigna.horaConsDia = u_convertHHMM2min(530);		// Consigna diurna
+	systemVars.consigna.horaConsNoc = u_convertHHMM2min(2330);		// Consigna nocturna
+	systemVars.consigna.chVA = 0;
+	systemVars.consigna.chVB = 1;
+	systemVars.cc_maxPb = 6.0;
+	systemVars.cc_pRef = 3.0;
+	systemVars.cc_pBTest = 1.0;
+	systemVars.cc_maxPW = 30;
 
 	xSemaphoreGive( sem_SYSVars );
 
@@ -412,3 +428,174 @@ void u_configPwrSave(u08 modoPwrSave, char *s_startTime, char *s_endTime)
 
 }
 //----------------------------------------------------------------------------------------
+u32 u_readTimeToNextDial(void)
+{
+	return(GPRS_stateVars.counters.awaitSecs);
+}
+//----------------------------------------------------------------------------------------
+// VALVULAS Y CONSIGNAS
+//----------------------------------------------------------------------------------------
+void u_vopen ( u08 valveId )
+{
+	// Aplica un pulso de apertura de 100ms en una valvula dada
+
+	 MCP_outsPulse( valveId , 0, 100 );	// Pulso de apertura
+
+	 // Dejo el sistema de salidas en reposo para que no consuma
+	 MCP_outputA1Disable();
+	 MCP_outputA2Disable();
+	 MCP_outputB1Disable();
+	 MCP_outputB2Disable();
+
+	 MCP_outputsSleep();
+}
+//----------------------------------------------------------------------------------------
+void u_close ( u08 valveId )
+{
+	// Aplica un pulso de cierre de 100ms en una valvula dada
+
+	 MCP_outsPulse( valveId , 1, 100 );	// Pulso de cierre
+
+	 // Dejo el sistema de salidas en reposo para que no consuma
+	 MCP_outputA1Disable();
+	 MCP_outputA2Disable();
+	 MCP_outputB1Disable();
+	 MCP_outputB2Disable();
+
+	 MCP_outputsSleep();
+}
+//----------------------------------------------------------------------------------------
+void u_setConsignaDiurna ( void )
+{
+	// Una consigna es la activacion simultanea de 2 valvulas, en las cuales un
+	// se abre y la otra se cierra.
+	// Cierro la valvula 1
+	// Abro la valvula 2
+	// Para abrir una valvula debemos poner una fase 10.
+	// Para cerrar es 01
+
+	// Por las dudas, reconfiguro el MCP
+	pvMCP_init_MCP1(1);
+
+	 MCP_outsPulse( systemVars.consigna.chVA , 1, 100 );	// Cierro la valvula 1
+	 vTaskDelay( ( TickType_t)( 1000 / portTICK_RATE_MS ) );
+	 MCP_outsPulse( systemVars.consigna.chVB , 0, 100 );	// Abro la valvula 2
+
+	 systemVars.consigna.consignaAplicada = CONSIGNA_DIURNA;
+
+	 // Dejo el sistema de salidas en reposo para que no consuma
+	 MCP_outputA1Disable();
+	 MCP_outputA2Disable();
+	 MCP_outputB1Disable();
+	 MCP_outputB2Disable();
+
+	 MCP_outputsSleep();
+}
+/*------------------------------------------------------------------------------------*/
+void u_setConsignaNocturna ( void )
+{
+	// Abro la valvula 1
+	// Cierro la valvula 2
+
+	// Por las dudas, reconfiguro el MCP
+	pvMCP_init_MCP1(1);
+
+	 MCP_outsPulse( systemVars.consigna.chVA , 0, 100 );	// Abro la valvula 1
+	 vTaskDelay( ( TickType_t)( 1000 / portTICK_RATE_MS ) );
+	 MCP_outsPulse( systemVars.consigna.chVB , 1, 100 );	// Cierro la valvula 2
+
+	 systemVars.consigna.consignaAplicada = CONSIGNA_NOCTURNA;
+
+	 // Dejo el sistema de salidas en reposo para que no consuma
+	 MCP_outputA1Disable();
+	 MCP_outputA2Disable();
+	 MCP_outputB1Disable();
+	 MCP_outputB2Disable();
+
+	 MCP_outputsSleep();
+
+}
+
+//------------------------------------------------------------------------------------
+void u_configConsignasModo( u08 modo )
+{
+	while ( xSemaphoreTake( sem_SYSVars, ( TickType_t ) 1 ) != pdTRUE )
+		taskYIELD();
+
+	switch(modo) {
+	case CONSIGNA_OFF:
+		systemVars.consigna.type = CONSIGNA_OFF;
+		break;
+	case CONSIGNA_DOBLE:
+		systemVars.consigna.type = CONSIGNA_DOBLE;
+		break;
+	case CONSIGNA_CONTINUA:
+		systemVars.consigna.type = CONSIGNA_CONTINUA;
+	}
+
+	xSemaphoreGive( sem_SYSVars );
+
+	// Le aviso a la tarea de las consignas que se reconfigure.
+	while ( xTaskNotify(xHandle_tkConsignas, TK_PARAM_RELOAD , eSetBits ) != pdPASS ) {
+		vTaskDelay( ( TickType_t)( 100 / portTICK_RATE_MS ) );
+	}
+}
+//------------------------------------------------------------------------------------
+
+void u_configDobleConsignas( char *s_horaConsDia,char *s_horaConsNoc,char *chVA,char *chVB )
+{
+
+	while ( xSemaphoreTake( sem_SYSVars, ( TickType_t ) 1 ) != pdTRUE )
+		taskYIELD();
+
+	if ( s_horaConsDia != NULL ) { systemVars.consigna.horaConsDia =  u_convertHHMM2min ( atol(s_horaConsDia) ); }
+	if ( s_horaConsNoc != NULL ) { systemVars.consigna.horaConsNoc =  u_convertHHMM2min ( atol(s_horaConsNoc) ); }
+	if ( chVA != NULL ) { systemVars.consigna.chVA = atoi(chVA); }
+	if ( chVB != NULL ) { systemVars.consigna.chVB = atoi(chVB); }
+
+	xSemaphoreGive( sem_SYSVars );
+
+	// Le aviso a la tarea de las consignas
+	while ( xTaskNotify(xHandle_tkConsignas, TK_PARAM_RELOAD , eSetBits ) != pdPASS ) {
+		vTaskDelay( ( TickType_t)( 100 / portTICK_RATE_MS ) );
+	}
+
+}
+/*------------------------------------------------------------------------------------*/
+
+
+void u_configConsignas( u08 modo, char *s_horaConsDia,char *s_horaConsNoc,char *chVA,char *chVB )
+{
+
+//	snprintf_P( debug_printfBuff,CHAR128,PSTR("DEBUG::u_configConsignas MODO=%d \r\n\0"), modo );
+//	FreeRTOS_write( &pdUART1, debug_printfBuff, sizeof(debug_printfBuff) );
+
+	while ( xSemaphoreTake( sem_SYSVars, ( TickType_t ) 1 ) != pdTRUE )
+		taskYIELD();
+
+	switch(modo) {
+	case CONSIGNA_OFF:
+		systemVars.consigna.type = CONSIGNA_OFF;
+		if ( s_horaConsDia != NULL ) { systemVars.consigna.horaConsDia =  u_convertHHMM2min ( atol(s_horaConsDia) ); }
+		if ( s_horaConsNoc != NULL ) { systemVars.consigna.horaConsNoc =  u_convertHHMM2min ( atol(s_horaConsNoc) ); }
+		if ( chVA != NULL ) { systemVars.consigna.chVA = atoi(chVA); }
+		if ( chVB != NULL ) { systemVars.consigna.chVB = atoi(chVB); }
+		break;
+	case CONSIGNA_DOBLE:
+		systemVars.consigna.type = CONSIGNA_DOBLE;
+		if ( s_horaConsDia != NULL ) { systemVars.consigna.horaConsDia =  u_convertHHMM2min ( atol(s_horaConsDia) ); }
+		if ( s_horaConsNoc != NULL ) { systemVars.consigna.horaConsNoc =  u_convertHHMM2min ( atol(s_horaConsNoc) ); }
+		if ( chVA != NULL ) { systemVars.consigna.chVA = atoi(chVA); }
+		if ( chVB != NULL ) { systemVars.consigna.chVB = atoi(chVB); }
+		break;
+	}
+
+	xSemaphoreGive( sem_SYSVars );
+
+	// Le aviso a la tarea de las consignas
+	while ( xTaskNotify(xHandle_tkConsignas, TK_PARAM_RELOAD , eSetBits ) != pdPASS ) {
+		vTaskDelay( ( TickType_t)( 100 / portTICK_RATE_MS ) );
+	}
+
+}
+/*------------------------------------------------------------------------------------*/

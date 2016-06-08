@@ -3,6 +3,7 @@
  *
  *  Created on: 23 de may. de 2016
  *      Author: pablo
+ *
  */
 
 #include "../sp5KV5_3CH.h"
@@ -27,8 +28,8 @@ typedef enum {
 	f_ev_CTIMER_NOT_0,
 	f_ev_P_TRYES_NOT_0,
 	f_ev_RSP_INIT_OK,		// La respuesta del SERVER es INIT OK.
-	f_ev_SOCK_IS_CLOSED,
 	f_ev_RSP_ERROR,			// La respuesta del modem es ERROR
+	f_ev_SOCK_IS_CLOSED,
 
 } t_eventos_ssInitFrame;
 
@@ -51,9 +52,15 @@ u08 i;
 	// Evaluo solo los eventos del estado INITFRAME.
 	if ( cTimer > 0 ) { f_eventos[f_ev_CTIMER_NOT_0] = TRUE; }
 	if ( GPRS_stateVars.counters.nroINITS != 1 ) { f_eventos[f_ev_NROINITS_NOT_1] = TRUE; }
+	if ( pTryes > 0 ) { f_eventos[f_ev_P_TRYES_NOT_0] = TRUE; }
 	if ( GPRS_stateVars.flags.modemResponse ==  MRSP_INIT_OK ) { f_eventos[f_ev_RSP_INIT_OK] = TRUE; }
 	if ( GPRS_stateVars.flags.modemResponse ==  MRSP_ERROR ) { f_eventos[f_ev_RSP_ERROR] = TRUE; }
 	if ( GPRS_stateVars.flags.socketStatus == SOCKET_CLOSED ) { f_eventos[f_ev_SOCK_IS_CLOSED] = TRUE; }
+
+	// MSG RELOAD
+	if ( g_checkReloadConfig(gST_INITFRAME) ) {
+		return;
+	}
 
 	// Corro la FSM
 	switch ( GPRS_stateVars.state.subState ) {

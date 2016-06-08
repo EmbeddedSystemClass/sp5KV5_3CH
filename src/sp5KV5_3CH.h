@@ -55,7 +55,7 @@
 // DEFINICION DEL TIPO DE SISTEMA
 //----------------------------------------------------------------------------
 #define SP5K_REV "5.0.0"
-#define SP5K_DATE "@ 20160511"
+#define SP5K_DATE "@ 20160608"
 
 #define SP5K_MODELO "sp5KV3 HW:avr1284P R5.0"
 #define SP5K_VERSION "FW:FRTOS8"
@@ -73,6 +73,7 @@
 #define tkAIn_STACK_SIZE		512
 #define tkGprsTx_STACK_SIZE		512
 #define tkGprsRx_STACK_SIZE		512
+#define tkCons_STACK_SIZE		512
 
 /* Prioridades de las tareas */
 #define tkCmd_TASK_PRIORITY	 		( tskIDLE_PRIORITY + 1 )
@@ -81,6 +82,7 @@
 #define tkAIn_TASK_PRIORITY 		( tskIDLE_PRIORITY + 1 )
 #define tkGprsTx_TASK_PRIORITY 		( tskIDLE_PRIORITY + 1 )
 #define tkGprsRx_TASK_PRIORITY 		( tskIDLE_PRIORITY + 1 )
+#define tkCons_TASK_PRIORITY 		( tskIDLE_PRIORITY + 1 )
 
 /* Prototipos de tareas */
 void tkCmd(void * pvParameters);
@@ -91,10 +93,11 @@ void tkAnalogIn(void * pvParameters);
 void tkAnalogInit(void);
 void tkGprsTx(void * pvParameters);
 void tkGprsRx(void * pvParameters);
+void tkConsignas(void * pvParameters);
 
 void tkGprsInit(void);
 
-TaskHandle_t xHandle_tkCmd, xHandle_tkControl, xHandle_tkDigitalIn, xHandle_tkAIn, xHandle_tkGprsTx, xHandle_tkGprsRx;
+TaskHandle_t xHandle_tkCmd, xHandle_tkControl, xHandle_tkDigitalIn, xHandle_tkAIn, xHandle_tkGprsTx, xHandle_tkGprsRx,xHandle_tkConsignas;
 
 s08 startTask;
 typedef struct {
@@ -119,7 +122,7 @@ typedef enum { D_NONE = 0, D_BASIC = 1, D_DATA = 2, D_GPRS = 4, D_MEM = 8, D_DIG
 typedef enum { T_APAGADA = 0, T_PRENDIDA = 1 } t_terminalStatus;
 typedef enum { MDM_PRENDIDO = 0, MDM_APAGADO } t_modemStatus;
 typedef enum { modoPWRSAVE_OFF = 0, modoPWRSAVE_ON } t_pwrSave;
-
+typedef enum { CONSIGNA_OFF = 0, CONSIGNA_DOBLE, CONSIGNA_CONTINUA, CONSIGNA_NONE, CONSIGNA_DIURNA, CONSIGNA_NOCTURNA } t_consigna;
 //------------------------------------------------------------------------------------
 
 #define NRO_DIGITAL_CHANNELS	2
@@ -146,6 +149,17 @@ typedef struct {
 	double batt;							// 4
 
 } frameData_t;	// 38 bytes
+
+typedef struct {
+	t_consigna type;
+	u16 horaConsDia;
+	u16 horaConsNoc;
+	u08 chVA;
+	u08 chVB;
+	t_consigna consignaAplicada;
+
+} consigna_t;		// 6 bytes
+
 
 typedef struct {
 	// Variables de trabajo.
@@ -200,6 +214,12 @@ typedef struct {
 	u08 tilt;
 	s08 tiltEnabled;
 
+	consigna_t consigna;
+	float cc_maxPb;			// Maxima presion en B en consigna continua
+	float cc_pRef;			// Presion a la que se quiere llevar pB.
+	float cc_pBTest;
+	u08 cc_maxPW;
+
 } systemVarsType;	// 315 bytes
 
 systemVarsType systemVars,tmpSV;
@@ -230,8 +250,8 @@ char nowStr[32];
 
 void u_readAnalogFrame (frameData_t *dFrame);
 s16 u_readTimeToNextPoll(void);
+u32 u_readTimeToNextDial(void);
 
-s32 u_readTimeToNextDial(void);
 s08 u_modemPwrStatus(void);
 
 s08 u_wrRtc(char *s);
@@ -239,6 +259,15 @@ s08 u_wrRtc(char *s);
 void u_debugPrint(u08 debugCode, char *msg, u16 size);
 void pvMCP_init_MCP1(u08 modo);
 
+void u_close ( u08 valveId );
+void u_vopen ( u08 valveId );
+void u_setConsignaNocturna ( void );
+void u_setConsignaDiurna ( void );
+void u_configConsignas( u08 modo, char *s_horaConsDia,char *s_horaConsNoc,char *chVA,char *chVB );
+void u_configConsignasModo( u08 modo );
+void u_configDobleConsignas( char *s_horaConsDia,char *s_horaConsNoc,char *chVA,char *chVB );
+
+void fuzzy_test(void);
 //------------------------------------------------------------------------------------
 // LED
 #define LED_KA_PORT		PORTD
@@ -279,6 +308,7 @@ u08 systemWdg;
 #define WDG_AIN			0x08
 #define WDG_GPRSTX		0x10
 #define WDG_GPRSRX		0x20
+#define WDG_CSG			0x40
 
 void u_clearWdg( u08 wdgId );
 

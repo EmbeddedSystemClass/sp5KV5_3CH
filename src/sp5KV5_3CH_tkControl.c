@@ -177,7 +177,7 @@ static u08 l_secCounter = 3;
 
 	if ( systemWdg == 0 ) {
 		wdt_reset();
-		systemWdg = WDG_CTL + WDG_CMD + WDG_DIN + WDG_AIN + WDG_GPRSTX + WDG_GPRSRX;// + WDG_CSG +
+		systemWdg = WDG_CTL + WDG_CMD + WDG_DIN + WDG_AIN + WDG_GPRSTX + WDG_GPRSRX + WDG_CSG;
 	}
 }
 
@@ -308,7 +308,6 @@ static u08 tilt = 0;
 	}
 }
 //------------------------------------------------------------------------------------
-
 void pv_switchTerminal( t_onOff modo )
 {
 	switch(modo) {

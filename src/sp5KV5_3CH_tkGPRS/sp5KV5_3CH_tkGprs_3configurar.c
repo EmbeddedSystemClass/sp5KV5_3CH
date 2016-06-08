@@ -6,8 +6,6 @@
  *
  * En este estado configuro las variables del modem y lo dejo
  * listo para abrir un socket.
- * No considero una reconfiguracion ya que ninguno de los parametros
- * configurables a distancia se utilizan.
  *
  */
 
@@ -42,7 +40,6 @@ static int gTR_C22(void);
 // Eventos locales al estado OnOFFLINE.
 typedef enum {
 	c_ev_GSMBAND_OK = 0,
-	c_ev_MSGRELOAD,
 	c_ev_CTIMER_NOT_0,
 	c_ev_P_TRYES_NOT_0,
 	c_ev_WKMONITOR_SQE,
@@ -53,9 +50,9 @@ typedef enum {
 
 #define sm_CONFIGURAR_EVENT_COUNT 7
 
-u08 cTimer;
-u08 pTryes;
-u08 qTryes;
+static u08 cTimer;
+static u08 pTryes;
+static u08 qTryes;
 
 //------------------------------------------------------------------------------------
 void sm_CONFIGURAR(void)
@@ -81,8 +78,11 @@ u08 i;
 	if (  GPRS_stateVars.flags.modemResponse == MRSP_CREG ) { c_eventos[c_ev_CREGRSP_OK] = TRUE; }
 	// ev_IPASSIGNED		E2IPA: 000
 	if (  GPRS_stateVars.flags.modemResponse == MRSP_E2IPA ) { c_eventos[c_ev_IPASSIGNED] = TRUE; }
-	// MSG_RELOAD
-	if ( GPRS_stateVars.flags.msgReload == TRUE ) { c_eventos[c_ev_MSGRELOAD] = TRUE; }
+
+	// MSG RELOAD
+	if ( g_checkReloadConfig(gST_CONFIGURAR) ) {
+		return;
+	}
 
 	switch ( GPRS_stateVars.state.subState ) {
 	case gSST_CONFIGURAR_00:
@@ -603,10 +603,12 @@ char c;
 
 	// Cambio de estado. Vengo de prender el modem por lo que
 	// debo mandar INITS
-	GPRS_stateVars.flags.socketStatus = SOCKET_CLOSED;
+	g_setSocketStatus(SOCKET_CLOSED);
 	// Voy a reintentar hasta 3 inits en pwrDiscreto.
 	GPRS_stateVars.counters.nroINITS = 4;
 	GPRS_stateVars.state.nextFrame = INIT_FRAME;
+
+	GPRS_stateVars.counters.nroLOTEtryes = MAXTRYESLOTE;
 
 	g_printExitMsg("C20\0");
 	return( pv_cambiarEstado(gST_CONFIGURAR,gST_STANDBY) );

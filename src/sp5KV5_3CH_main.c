@@ -1,6 +1,10 @@
 /*
  *
  * git commit -a -m "beta 473293390 001"
+ *
+ * git remote add origin https://github.com/ppeluffo/sp5KV5_3CH.git
+ * git push -u origin master
+
  * git remote add REM_SP5KV4 https://github.com/ppeluffo/sp5KV4.git
  * git push -u REM_SP5KV4 master
  *
@@ -12,6 +16,9 @@
  * 3- Incorporar la consigna continua.
  *
  * * PwrSave
+ * * Se excede en tiempo con el lote. Revisar el server
+ * * Luego de excederse con el lote, espera solo 15s con el modem apagado
+ *
  *
  * WATCHDOG:
  * Para hacer un mejor seguimiento de las fallas, agrego a c/estado un nro.
@@ -143,8 +150,9 @@ unsigned int i,j;
 	xTaskCreate(tkAnalogIn, "AIN", tkAIn_STACK_SIZE, NULL, tkAIn_TASK_PRIORITY,  &xHandle_tkAIn);
 	xTaskCreate(tkGprsTx, "GPTX", tkGprsTx_STACK_SIZE, NULL, tkGprsTx_TASK_PRIORITY,  &xHandle_tkGprsTx);
 	xTaskCreate(tkGprsRx, "GPRX", tkGprsRx_STACK_SIZE, NULL, tkGprsRx_TASK_PRIORITY,  &xHandle_tkGprsRx);
+	xTaskCreate(tkConsignas, "CONS", tkCons_STACK_SIZE, NULL, tkCons_TASK_PRIORITY,  &xHandle_tkConsignas);
 
-	systemWdg = WDG_CTL + WDG_CMD + WDG_DIN + WDG_AIN + WDG_GPRSTX + WDG_GPRSRX;
+	systemWdg = WDG_CTL + WDG_CMD + WDG_DIN + WDG_AIN + WDG_GPRSTX + WDG_GPRSRX + WDG_CSG;
 
 	/* Arranco el RTOS. */
 	vTaskStartScheduler();

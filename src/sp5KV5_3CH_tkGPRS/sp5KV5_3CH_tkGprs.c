@@ -43,6 +43,9 @@ uint32_t ulNotifiedValue;
 
 	// Fijo el modo para arrancar
 	pv_cambiarEstado(gST_INICIAL,gST_MODEMAPAGADO);
+	// Arranco el timer
+	if ( xTimerStart( gprsTimer, 0 ) != pdPASS )
+		u_panic(P_GPRS_TIMERSTART);
 
 	//
 	for( ;; )
@@ -140,12 +143,12 @@ size_t pos;
 
 				if ( g_strstr("CONNECT", &pos ) == TRUE ) {
 					g_setSocketStatus(SOCKET_OPEN);
-				//	FreeRTOS_write( &pdUART1, "DEBUG ** MRSP_CONNECT\r\n\0", sizeof("DEBUG ** MRSP_CONNECT\r\n\0") );
+					FreeRTOS_write( &pdUART1, "DEBUG ** MRSP_CONNECT\r\n\0", sizeof("DEBUG ** MRSP_CONNECT\r\n\0") );
 				}
 
 				if ( g_strstr("NO CARRIER", &pos ) == TRUE ) {
 					g_setSocketStatus(SOCKET_CLOSED);
-				//	FreeRTOS_write( &pdUART1, "DEBUG ** MRSP_NO CARRIER\r\n\0", sizeof("DEBUG ** MRSP_NO CARRIER\r\n\0") );
+					FreeRTOS_write( &pdUART1, "DEBUG ** MRSP_NO CARRIER\r\n\0", sizeof("DEBUG ** MRSP_NO CARRIER\r\n\0") );
 				}
 			}
 		}
@@ -158,7 +161,7 @@ void tkGprsInit(void)
 	// el timer que necesitamos en este modulo
 	// Expira c/1sec
 
-	GPRS_stateVars.counters.secs = 1;
+	GPRS_stateVars.counters.awaitSecs = 1;
 
 	gprsTimer = xTimerCreate (  "GPRS_T",
 	                     /* The timer period in ticks, must be greater than 0. */
@@ -177,8 +180,9 @@ void tkGprsInit(void)
 //------------------------------------------------------------------------------------
 void pv_gprsTimerCallback( TimerHandle_t pxTimer )
 {
-
-	++GPRS_stateVars.counters.secs;
+	if ( GPRS_stateVars.counters.awaitSecs > 0 ) {
+		--GPRS_stateVars.counters.awaitSecs;
+	}
 
 }
 //--------------------------------------------------------------------------------------

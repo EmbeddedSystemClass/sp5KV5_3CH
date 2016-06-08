@@ -121,7 +121,7 @@ s08 u_modemPwrStatus(void)
 //--------------------------------------------------------------------------------------
 void g_setSocketStatus( u08 socketStatus)
 {
-	//GPRS_flags.socketStatus = socketStatus;
+	GPRS_stateVars.flags.socketStatus = socketStatus;
 
 }
 //-------------------------------------------------------------------------------------
@@ -538,4 +538,17 @@ quit:
 	return(ret);
 
 }
+//--------------------------------------------------------------------------------------
+s08 g_checkReloadConfig(t_tkGprs_state gprsState )
+{
+	if ( GPRS_stateVars.flags.msgReload == TRUE ) {
+		snprintf_P( gprs_printfBuff,sizeof(gprs_printfBuff),PSTR("\r\ntkGprs::GPRS reload Conf (%d)..\r\n\0"),gprsState );
+		u_debugPrint(D_GPRS, gprs_printfBuff, sizeof(gprs_printfBuff) );
+		pv_cambiarEstado(gprsState,gST_MODEMAPAGADO);
+		return(TRUE);
+	} else {
+		return(FALSE);
+	}
+}
+
 //--------------------------------------------------------------------------------------
