@@ -59,7 +59,7 @@ static frameData_t Aframe;
 
 #define CICLOS_POLEO		3		// ciclos de poleo para promediar.
 #define SECS2PWRSETTLE 		3
-#define SECS_IN_SLOT		15		// cada slot corresponde a 15s
+#define SECS_IN_SLOT		30		// cada slot corresponde a 30s
 
 // Funciones generales
 void  pv_ANtimerCallback( TimerHandle_t pxTimer );
@@ -288,7 +288,7 @@ static int anTR_02(void)
 static int anTR_03(void)
 {
 	// Evaluo las condiciones para poder polear
-	// Los slots son de 15s y los pauta pv_ANtimerCallback. Aqui cuento estos slots
+	// Los slots son de 30s y los pauta pv_ANtimerCallback. Aqui cuento estos slots
 	// para ver cuando poleo y si corresponde a un poleo de datos para alamacenar o
 	// para el sistema de consignas.
 
@@ -303,7 +303,7 @@ static int anTR_03(void)
 
 	if ( AN_flags.slotComplete ) {
 
-		// complete un slot, pasaron 15s.Reseteo la flag.
+		// complete un slot, pasaron 30s.Reseteo la flag.
 		AN_flags.slotComplete = FALSE;
 		--AN_counters.pollFrame;
 
@@ -320,9 +320,9 @@ static int anTR_03(void)
 		}
 
 		// Si la consigna es continua, poleo en cada slot
-		//if ( systemVars.consigna.status == CONSIGNA_CONTINUA ) {
-		//	AN_flags.start2poll = TRUE;
-		//}
+		if ( systemVars.consigna.type == CONSIGNA_CONTINUA ) {
+			AN_flags.start2poll = TRUE;
+		}
 
 		// En modo MONITOR_FRAME poleo en cada slot
 		if ( systemVars.wrkMode == WK_MONITOR_FRAME  ) {
