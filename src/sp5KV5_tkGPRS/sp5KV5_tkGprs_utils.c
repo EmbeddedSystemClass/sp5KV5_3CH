@@ -6,7 +6,7 @@
  */
 
 #include "../sp5KV5_3CH.h"
-#include "sp5KV5_3CH_tkGprs.h"
+#include "sp5KV5_tkGprs.h"
 
 //------------------------------------------------------------------------------------
 void g_flushRXBuffer(void)

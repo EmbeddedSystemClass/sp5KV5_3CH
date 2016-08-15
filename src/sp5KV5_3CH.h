@@ -55,7 +55,7 @@
 // DEFINICION DEL TIPO DE SISTEMA
 //----------------------------------------------------------------------------
 #define SP5K_REV "5.0.0"
-#define SP5K_DATE "@ 20160610"
+#define SP5K_DATE "@ 20160815"
 
 #define SP5K_MODELO "sp5KV3 HW:avr1284P R5.0"
 #define SP5K_VERSION "FW:FRTOS8"
@@ -63,6 +63,13 @@
 #define CHAR64		64
 #define CHAR128	 	128
 #define CHAR256	 	256
+
+//----------------------------------------------------------------------------
+// PERSONALIZACION DEL FIRMWARE
+
+//#define CONSIGNA
+#define PRESION
+//#define POZOS
 
 //----------------------------------------------------------------------------
 // TASKS
@@ -74,6 +81,7 @@
 #define tkGprsTx_STACK_SIZE		512
 #define tkGprsRx_STACK_SIZE		512
 #define tkCons_STACK_SIZE		512
+#define tkRange_STACK_SIZE		512
 
 /* Prioridades de las tareas */
 #define tkCmd_TASK_PRIORITY	 		( tskIDLE_PRIORITY + 1 )
@@ -83,6 +91,7 @@
 #define tkGprsTx_TASK_PRIORITY 		( tskIDLE_PRIORITY + 1 )
 #define tkGprsRx_TASK_PRIORITY 		( tskIDLE_PRIORITY + 1 )
 #define tkCons_TASK_PRIORITY 		( tskIDLE_PRIORITY + 1 )
+#define tkRange_TASK_PRIORITY 		( tskIDLE_PRIORITY + 1 )
 
 /* Prototipos de tareas */
 void tkCmd(void * pvParameters);
@@ -94,10 +103,12 @@ void tkAnalogInit(void);
 void tkGprsTx(void * pvParameters);
 void tkGprsRx(void * pvParameters);
 void tkConsignas(void * pvParameters);
+void tkRange(void * pvParameters);
+void tkRangeInit( void );
 
 void tkGprsInit(void);
 
-TaskHandle_t xHandle_tkCmd, xHandle_tkControl, xHandle_tkDigitalIn, xHandle_tkAIn, xHandle_tkGprsTx, xHandle_tkGprsRx,xHandle_tkConsignas;
+TaskHandle_t xHandle_tkCmd, xHandle_tkControl, xHandle_tkDigitalIn, xHandle_tkAIn, xHandle_tkGprsTx, xHandle_tkGprsRx,xHandle_tkConsignas,xHandle_tkRange;
 
 s08 startTask;
 typedef struct {
@@ -110,7 +121,9 @@ wdgStatus_t wdgStatus;
 // Mensajes entre tareas
 #define TK_PARAM_RELOAD			0x01	// to tkAnalogIN: reload
 #define TKA_READ_FRAME			0x02	// to tkAnalogIN: (mode service) read a frame
-
+#define TKC_FRAME_READY			0x04	// to tkConsignas: frame ready
+#define TKC_FLOODING			0x08	// to tkGprs: tilt on
+#define TKR_READ_FRAME			0x10	// to tRange: (mode service) read a frame
 //------------------------------------------------------------------------------------
 
 xSemaphoreHandle sem_SYSVars;
@@ -118,15 +131,14 @@ xSemaphoreHandle sem_SYSVars;
 typedef enum { WK_IDLE = 0, WK_NORMAL, WK_SERVICE, WK_MONITOR_FRAME, WK_MONITOR_SQE  } t_wrkMode;
 typedef enum { PWR_CONTINUO = 0, PWR_DISCRETO } t_pwrMode;
 typedef enum { OFF = 0, ON = 1 } t_onOff;
+typedef enum { STOP = 0, RUN = 1 } t_binary;
+typedef enum { BAD = 0, GOOD = 1 } t_goodBad;
 typedef enum { D_NONE = 0, D_BASIC = 1, D_DATA = 2, D_GPRS = 4, D_MEM = 8, D_DIGITAL = 16, D_CONSIGNA = 32, D_DEBUG = 64 } t_debug;
 typedef enum { T_APAGADA = 0, T_PRENDIDA = 1 } t_terminalStatus;
 typedef enum { MDM_PRENDIDO = 0, MDM_APAGADO } t_modemStatus;
 typedef enum { modoPWRSAVE_OFF = 0, modoPWRSAVE_ON } t_pwrSave;
 typedef enum { CONSIGNA_OFF = 0, CONSIGNA_DOBLE, CONSIGNA_CONTINUA, CONSIGNA_NONE, CONSIGNA_DIURNA, CONSIGNA_NOCTURNA } t_consigna;
 //------------------------------------------------------------------------------------
-
-#define NRO_DIGITAL_CHANNELS	2
-#define NRO_ANALOG_CHANNELS		3
 
 #define DLGID_LENGTH		12
 #define APN_LENGTH			32
@@ -135,6 +147,9 @@ typedef enum { CONSIGNA_OFF = 0, CONSIGNA_DOBLE, CONSIGNA_CONTINUA, CONSIGNA_NON
 #define SCRIPT_LENGTH		64
 #define PASSWD_LENGTH		15
 #define PARAMNAME_LENGTH	5
+
+#define NRO_ANALOG_CHANNELS		3
+#define NRO_DIGITAL_CHANNELS	2
 
 typedef struct {
 	u08 level[NRO_ANALOG_CHANNELS];		// 2
@@ -147,6 +162,7 @@ typedef struct {
 	dinData_t dIn;							// 12
 	double analogIn[NRO_ANALOG_CHANNELS];	// 12
 	double batt;							// 4
+	s08 status;
 
 } frameData_t;	// 38 bytes
 
@@ -181,14 +197,16 @@ typedef struct {
 	u08 dbm;
 	u08 ri;
 	u08 termsw;
+	u08 log;
 
 	u16 timerPoll;
 	u32 timerDial;
 
+	u16 maxRange;
+
 	t_wrkMode wrkMode;
 	t_pwrMode pwrMode;
 
-	u08 logLevel;		// Nivel de info que presentamos en display.
 	u08 debugLevel;		// Indica que funciones debugear.
 	u08 gsmBand;
 
@@ -245,10 +263,13 @@ char *u_now(void);
 u16 u_convertHHMM2min(u16 HHMM );
 u16 u_convertMINS2hhmm ( u16 mins );
 void u_reset(void);
+void u_rangeSignal(t_binary action);
+s08 u_configMaxRange(char *s_tPoll);
 
 char nowStr[32];
 
 void u_readAnalogFrame (frameData_t *dFrame);
+void u_readDataFrame (frameData_t *dFrame);
 s16 u_readTimeToNextPoll(void);
 u32 u_readTimeToNextDial(void);
 
@@ -258,6 +279,7 @@ s08 u_wrRtc(char *s);
 
 void u_debugPrint(u08 debugCode, char *msg, u16 size);
 void pvMCP_init_MCP1(u08 modo);
+void u_logPrint(char *msg, u16 size);
 
 void u_close ( u08 valveId );
 void u_vopen ( u08 valveId );
@@ -297,6 +319,8 @@ void fuzzy_test(void);
 #define P_GPRS_TIMERSTART	4
 #define P_CTL_TIMERCREATE	5
 #define P_CTL_TIMERSTART	6
+#define P_RANGE_TIMERSTART	7
+#define P_RANGE_TIMERCREATE	8
 
 //------------------------------------------------------------------------------------
 // WATCHDOG
@@ -305,7 +329,10 @@ u08 systemWdg;
 #define WDG_CTL			0x01
 #define WDG_CMD			0x02
 #define WDG_DIN			0x04
+
 #define WDG_AIN			0x08
+#define WDG_RANGE		0x08
+
 #define WDG_GPRSTX		0x10
 #define WDG_GPRSRX		0x20
 #define WDG_CSG			0x40
@@ -350,6 +377,32 @@ t_terminalStatus u_terminalPwrStatus(void);
 s08 u_checkAlarmFloding(void);
 
 //------------------------------------------------------------------------------------
+// RANGEMETER
+// Control
+#define RM_RUN_PORT			PORTB
+#define RM_RUN_PIN			PINB
+#define RM_RUN_BIT			1
+#define RM_RUN_DDR			DDRB
+
+// Pulse Width
+#define RM_PW_PORT			PORTB
+#define RM_PW_PIN			PINB
+#define RM_PW_BIT			2
+#define RM_PW_DDR			DDRB
+
+// Digital DIN0
+#define RM_DIN0_PORT		PORTD
+#define RM_DIN0_PIN			PIND
+#define RM_DIN0_BIT			7
+#define RM_DIN0_DDR			DDRD
+
+// Digital DIN1
+#define RM_DIN1_PORT		PORTC
+#define RM_DIN1_PIN			PINC
+#define RM_DIN1_BIT			4
+#define RM_DIN1_DDR			DDRD
+//------------------------------------------------------------------------------------
+
 char debug_printfBuff[CHAR128];
 
 #endif /* SP5K_H_ */

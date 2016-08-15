@@ -22,7 +22,7 @@
  *
  */
 #include "../sp5KV5_3CH.h"
-#include "sp5KV5_3CH_tkGprs.h"
+#include "sp5KV5_tkGprs.h"
 
 TimerHandle_t gprsTimer;
 
@@ -41,6 +41,8 @@ uint32_t ulNotifiedValue;
 	snprintf_P( gprs_printfBuff,sizeof(gprs_printfBuff),PSTR("starting tkGprsTx..\r\n\0"));
 	FreeRTOS_write( &pdUART1, gprs_printfBuff, sizeof(gprs_printfBuff) );
 
+	GPRS_stateVars.flags.msgFlooding = FALSE;
+
 	// Fijo el modo para arrancar
 	pv_cambiarEstado(gST_INICIAL,gST_MODEMAPAGADO);
 	// Arranco el timer
@@ -58,6 +60,10 @@ uint32_t ulNotifiedValue;
 		if ( xResult == pdTRUE ) {
 			if ( ( ulNotifiedValue & TK_PARAM_RELOAD ) != 0 ) {
 				GPRS_stateVars.flags.msgReload = TRUE;
+			}
+
+			if ( ( ulNotifiedValue & TKC_FLOODING ) != 0 ) {
+				GPRS_stateVars.flags.msgFlooding = TRUE;
 			}
 		}
 
@@ -143,12 +149,12 @@ size_t pos;
 
 				if ( g_strstr("CONNECT", &pos ) == TRUE ) {
 					g_setSocketStatus(SOCKET_OPEN);
-					FreeRTOS_write( &pdUART1, "DEBUG ** MRSP_CONNECT\r\n\0", sizeof("DEBUG ** MRSP_CONNECT\r\n\0") );
+				//	FreeRTOS_write( &pdUART1, "DEBUG ** MRSP_CONNECT\r\n\0", sizeof("DEBUG ** MRSP_CONNECT\r\n\0") );
 				}
 
 				if ( g_strstr("NO CARRIER", &pos ) == TRUE ) {
 					g_setSocketStatus(SOCKET_CLOSED);
-					FreeRTOS_write( &pdUART1, "DEBUG ** MRSP_NO CARRIER\r\n\0", sizeof("DEBUG ** MRSP_NO CARRIER\r\n\0") );
+				//	FreeRTOS_write( &pdUART1, "DEBUG ** MRSP_NO CARRIER\r\n\0", sizeof("DEBUG ** MRSP_NO CARRIER\r\n\0") );
 				}
 			}
 		}

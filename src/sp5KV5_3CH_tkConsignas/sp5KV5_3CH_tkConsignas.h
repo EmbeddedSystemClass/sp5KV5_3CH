@@ -10,6 +10,8 @@
 
 char cons_printfBuff[CHAR128];
 
+s08 f_dc_frameReady;
+
 void sm_DOBLECONSIGNA(void);
 void sm_CONSIGNAOFF(void);
 void sm_CONSIGNACONTINUA(void);

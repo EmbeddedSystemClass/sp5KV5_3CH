@@ -6,7 +6,7 @@
  */
 
 #include "sp5KV5_3CH.h"
-#include "sp5KV5_3CH_tkGprs.h"
+#include "sp5KV5_tkGprs.h"
 
 u08 pv_paramLoad(u08* data, u08* addr, u16 sizebytes);
 u08 pv_paramStore(u08* data, u08* addr, u16 sizebytes);
@@ -176,6 +176,15 @@ int i;
 	systemVars.dChName[0][PARAMNAME_LENGTH - 1] = '\0';
 	systemVars.dChName[1][PARAMNAME_LENGTH - 1] = '\0';
 
+#ifdef POZOS
+	systemVars.pwrMode = PWR_CONTINUO;
+	systemVars.timerPoll = 60;			// Poleo c/1 minutos
+
+	// Canales digitales
+	systemVars.magPP[0] = 1;
+	systemVars.magPP[1] = 1;
+#endif
+
 	return(retS);
 
 }
@@ -252,9 +261,9 @@ u08 checksum=0;
 //------------------------------------------------------------------------------------
 void u_loadDefaults(void)
 {
-u08 channel;
 
 // Configura el systemVars con valores por defecto.
+u08 channel;
 
 	while ( xSemaphoreTake( sem_SYSVars, ( TickType_t ) 1 ) != pdTRUE )
 		taskYIELD();
@@ -270,21 +279,39 @@ u08 channel;
 	systemVars.gsmBand = 8;
 	systemVars.ri = 0;
 	systemVars.wrkMode = WK_NORMAL;
-	systemVars.pwrMode = PWR_DISCRETO;
 
 	strncpy_P(systemVars.apn, PSTR("SPYMOVIL.VPNANTEL\0"),APN_LENGTH);
 	systemVars.roaming = FALSE;
 
 	// DEBUG
-	systemVars.debugLevel = D_BASIC + D_GPRS;
+	systemVars.debugLevel = D_NONE;
+	systemVars.log = ON;
 
 	strncpy_P(systemVars.serverAddress, PSTR("192.168.0.9\0"),IP_LENGTH);
-	systemVars.timerPoll = 30;			// Poleo c/5 minutos
-	systemVars.timerDial = 1800;		// Transmito c/3 hs.
 
 	systemVars.pwrSave = modoPWRSAVE_OFF;
 	systemVars.pwrSaveStartTime =u_convertHHMM2min(2230);	// 22:30 PM
 	systemVars.pwrSaveEndTime =	u_convertHHMM2min(630);		// 6:30 AM
+
+	// Detector de Tilt.
+	systemVars.tiltEnabled = FALSE;
+
+#ifdef POZOS
+	systemVars.pwrMode = PWR_CONTINUO;
+	systemVars.timerPoll = 60;			// Poleo c/1 minutos
+	strncpy_P(systemVars.aChName[0], PSTR("H\0"),3);
+
+	// Canales digitales
+	strncpy_P(systemVars.dChName[0], PSTR("B1\0"),3);
+	systemVars.magPP[0] = 1;
+	strncpy_P(systemVars.dChName[1], PSTR("B2\0"),3);
+	systemVars.magPP[1] = 1;
+#endif
+
+#ifdef PRESION
+	systemVars.pwrMode = PWR_DISCRETO;
+	systemVars.timerPoll = 300;			// Poleo c/5 minutos
+	systemVars.timerDial = 1800;		// Transmito c/3 hs.
 
 	// Todos los canales quedan por default en 0-20mA, 0-6k.
 	for ( channel = 0; channel < NRO_ANALOG_CHANNELS ; channel++) {
@@ -303,12 +330,11 @@ u08 channel;
 	systemVars.magPP[0] = 0.1;
 	strncpy_P(systemVars.dChName[1], PSTR("v1\0"),3);
 	systemVars.magPP[1] = 0.1;
+#endif
 
-	// Detector de Tilt.
-	systemVars.tiltEnabled = FALSE;
-
+#ifdef CONSIGNA
 	// Consignas
-	systemVars.consigna.type = CONSIGNA_OFF;
+	systemVars.consigna.type = CONSIGNA_DOBLE;
 	systemVars.consigna.horaConsDia = u_convertHHMM2min(530);		// Consigna diurna
 	systemVars.consigna.horaConsNoc = u_convertHHMM2min(2330);		// Consigna nocturna
 	systemVars.consigna.chVA = 0;
@@ -317,6 +343,7 @@ u08 channel;
 	systemVars.cc_pRef = 3.0;
 	systemVars.cc_pBTest = 1.0;
 	systemVars.cc_maxPW = 30;
+#endif
 
 	xSemaphoreGive( sem_SYSVars );
 
@@ -355,7 +382,7 @@ RtcTimeType_t rtcDateTime;
 	retS = RTC_write(&rtcDateTime);
 	return(retS);
 }
-/*------------------------------------------------------------------------------------*/
+//------------------------------------------------------------------------------------
 char *u_now(void)
 {
 
@@ -366,7 +393,7 @@ RtcTimeType_t rtcDateTime;
 
 	RTC_read(&rtcDateTime);
 	rtcDateTime.year -= 2000;
-	snprintf_P( nowStr,sizeof(nowStr), PSTR("%02d/%02d/%02d %02d:%02d:%02d\0"),rtcDateTime.day,rtcDateTime.month,rtcDateTime.year,rtcDateTime.hour,rtcDateTime.min,rtcDateTime.sec );
+	snprintf_P( nowStr,sizeof(nowStr), PSTR("%02d/%02d/%02d %02d:%02d:%02d \0"),rtcDateTime.day,rtcDateTime.month,rtcDateTime.year,rtcDateTime.hour,rtcDateTime.min,rtcDateTime.sec );
 	return(nowStr);
 }
 //------------------------------------------------------------------------------------
@@ -382,6 +409,15 @@ void u_debugPrint(u08 debugCode, char *msg, u16 size)
 {
 
 	if ( (systemVars.debugLevel & debugCode) != 0) {
+		FreeRTOS_write( &pdUART1, msg, size );
+	}
+}
+//------------------------------------------------------------------------------------
+void u_logPrint(char *msg, u16 size)
+{
+
+	if ( systemVars.log == ON ) {
+		FreeRTOS_write( &pdUART1, u_now(), 20 );
 		FreeRTOS_write( &pdUART1, msg, size );
 	}
 }
@@ -541,7 +577,6 @@ void u_configConsignasModo( u08 modo )
 	}
 }
 //------------------------------------------------------------------------------------
-
 void u_configDobleConsignas( char *s_horaConsDia,char *s_horaConsNoc,char *chVA,char *chVB )
 {
 
@@ -562,8 +597,6 @@ void u_configDobleConsignas( char *s_horaConsDia,char *s_horaConsNoc,char *chVA,
 
 }
 /*------------------------------------------------------------------------------------*/
-
-
 void u_configConsignas( u08 modo, char *s_horaConsDia,char *s_horaConsNoc,char *chVA,char *chVB )
 {
 
@@ -599,3 +632,37 @@ void u_configConsignas( u08 modo, char *s_horaConsDia,char *s_horaConsNoc,char *
 
 }
 /*------------------------------------------------------------------------------------*/
+#ifdef POZOS
+s08 u_configMaxRange(char *s_tPoll)
+{
+u16 maxRange;
+
+	// El timerpoll no puede ser menor de 25cms.
+
+	maxRange = abs((u16) ( atol(s_tPoll) ));
+	if ( maxRange < 25 ) { maxRange = 25; }
+
+	while ( xSemaphoreTake( sem_SYSVars, ( TickType_t ) 1 ) != pdTRUE )
+		taskYIELD();
+
+	systemVars.maxRange = maxRange;
+	xSemaphoreGive( sem_SYSVars );
+
+	return(TRUE);
+}
+//------------------------------------------------------------------------------------
+void u_rangeSignal(t_binary action)
+{
+
+	// Genera una senal de prendido/apagado del sensor
+	switch ( action ) {
+	case RUN:
+		sbi(RM_RUN_PORT, RM_RUN_BIT);
+		break;
+	case STOP:
+		cbi(RM_RUN_PORT, RM_RUN_BIT);
+		break;
+	}
+}
+//------------------------------------------------------------------------------------
+#endif

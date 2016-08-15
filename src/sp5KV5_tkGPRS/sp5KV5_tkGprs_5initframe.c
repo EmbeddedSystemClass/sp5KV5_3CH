@@ -7,7 +7,7 @@
  */
 
 #include "../sp5KV5_3CH.h"
-#include "sp5KV5_3CH_tkGprs.h"
+#include "sp5KV5_tkGprs.h"
 
 static int gTR_F00(void);
 static int gTR_F01(void);
@@ -128,7 +128,7 @@ static int gTR_F01(void)
 	}
 
 	snprintf_P( gprs_printfBuff,sizeof(gprs_printfBuff),PSTR("\r\n%s: GPRS init FRAME(%d):\r\n\0"), u_now(), GPRS_stateVars.counters.nroINITS );
-	FreeRTOS_write( &pdUART1, gprs_printfBuff, sizeof(gprs_printfBuff) );
+	u_debugPrint(D_GPRS, gprs_printfBuff, sizeof(gprs_printfBuff) );
 
 	g_printExitMsg("F01\0");
 	return(gSST_INITFRAME_02);
@@ -178,6 +178,7 @@ u08 i;
 
 	// timerpoll
 	pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR("&TPOLL=%d"), systemVars.timerPoll);
+#ifdef PRESION
 	// timerdial
 	pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR("&TDIAL=%d"), systemVars.timerDial);
 	// tilt
@@ -191,23 +192,31 @@ u08 i;
 	if ( systemVars.pwrMode == PWR_DISCRETO) { pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR("&PWRM=DISC")); }
 	// pwrSave
 	pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR("&PWRS=%d,%d,%d"),systemVars.pwrSave, u_convertMINS2hhmm( systemVars.pwrSaveStartTime ),u_convertMINS2hhmm( systemVars.pwrSaveEndTime) );
+#endif
+
 	// csq
 	pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR("&CSQ=%d\0"), systemVars.csq);
 	// GPRS sent
 	FreeRTOS_write( &pdUART0, gprs_printfBuff, sizeof(gprs_printfBuff) );
 	// LOG
-	if ( (systemVars.debugLevel & D_GPRS) != 0) {
-		snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR("\r\n\0" ));
-		FreeRTOS_write( &pdUART1, gprs_printfBuff, sizeof(gprs_printfBuff) );
-	}
+	snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR("\r\n\0" ));
+	u_debugPrint(D_GPRS, gprs_printfBuff, sizeof(gprs_printfBuff) );
 
 	// BODY ( 2a parte) :
 	memset(gprs_printfBuff, '\0', sizeof(gprs_printfBuff));
 	pos = 0;
+
+#ifdef PRESION
 	// Configuracion de canales analogicos
 	for ( i = 0; i < NRO_ANALOG_CHANNELS; i++) {
 		pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR("&A%d=%s,%d,%d,%d,%.02f"), i,systemVars.aChName[i],systemVars.Imin[i], systemVars.Imax[i], systemVars.Mmin[i], systemVars.Mmax[i]);
 	}
+#endif
+
+#ifdef POZOS
+	// Configuracion de canales analogicos
+	pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR("&A%d=%s"), 0,systemVars.aChName[0] );
+#endif
 	// Configuracion de canales digitales
 	pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR("&D0=%s,%.02f"),systemVars.dChName[0],systemVars.magPP[0]);
 	pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR("&D1=%s,%.02f"),systemVars.dChName[1],systemVars.magPP[1]);
@@ -229,6 +238,9 @@ u08 i;
 	// LOG
 	snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR("\r\n\0" ));
 	u_debugPrint(D_GPRS, gprs_printfBuff, sizeof(gprs_printfBuff) );
+
+	snprintf_P( gprs_printfBuff,sizeof(gprs_printfBuff),PSTR("GPRS: Frame INIT enviado.\r\n\0"));
+	u_logPrint(gprs_printfBuff, sizeof(gprs_printfBuff) );
 
 	g_printExitMsg("F02\0");
 	return(gSST_INITFRAME_03);
@@ -290,6 +302,8 @@ u08 saveFlag = 0;
 	g_GPRSprocessServerClock();
 	saveFlag = g_GPRSprocessPwrMode();
 	saveFlag += g_GPRSprocessTimerPoll();
+
+#ifdef PRESION
 	saveFlag += g_GPRSprocessTimerDial();
 	saveFlag += g_GPRSprocessPwrSave();
 	saveFlag += g_GPRSprocessTilt();
@@ -297,6 +311,11 @@ u08 saveFlag = 0;
 	saveFlag += g_GPRSprocessAch(0);
 	saveFlag += g_GPRSprocessAch(1);
 	saveFlag += g_GPRSprocessAch(2);
+#endif
+
+#ifdef POZOS
+	saveFlag += g_GPRSprocessAch(0);
+#endif
 	// Canales digitales
 	saveFlag += g_GPRSprocessDch(0);
 	saveFlag += g_GPRSprocessDch(1);
@@ -305,7 +324,7 @@ u08 saveFlag = 0;
 		if ( u_saveSystemParams() ) {
 
 			snprintf_P( gprs_printfBuff,sizeof(gprs_printfBuff),PSTR("\r\nGPRS: save parameters OK\r\n\0"));
-			FreeRTOS_write( &pdUART1, gprs_printfBuff, sizeof(gprs_printfBuff) );
+			u_debugPrint(D_GPRS, gprs_printfBuff, sizeof(gprs_printfBuff) );
 
 			// Le aviso a la tkAnalog que se reconfigure.
 			while ( xTaskNotify(xHandle_tkAIn, TK_PARAM_RELOAD , eSetBits ) != pdPASS ) {
@@ -322,6 +341,9 @@ u08 saveFlag = 0;
 
 	// Trasmiti el ultimo error de WDG: lo borro
 	wdgStatus.resetCause = 0;
+
+	snprintf_P( gprs_printfBuff,sizeof(gprs_printfBuff),PSTR("GPRS: Frame INIT confirmado.\r\n\0"));
+	u_logPrint(gprs_printfBuff, sizeof(gprs_printfBuff) );
 
 	// Si el server me manda que me resetee para borrar las flags de alarma
 	g_GPRSprocessReset();

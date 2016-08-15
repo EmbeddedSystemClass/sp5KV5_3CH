@@ -7,18 +7,33 @@
 
  * git remote add REM_SP5KV4 https://github.com/ppeluffo/sp5KV4.git
  * git push -u REM_SP5KV4 master
+ * -------------------------------------------------------------------------------------------------------
+ * VERSION 5.0.0 @ 2016-08-08:
+ * ---------------------------
+ * 1- Arreglo es estado de modem apagado ya que contiene bugs.
+ * 2- En caso que se activa el tilt, se avisa a la tarea de GPRS por un mensaje
  *
+ * Configurar consigna continua en GPRS.
+ *
+ * VERSION 5.0.0 @ 2016-08-04:
+ * ---------------------------
+ * 1- Defino una funcion logprint para mejorar el entendimiento de los mensajes.
+ * 2- Configuro el ID del Bluetooth con el dlgId cuando arranco
+ * 3- Arreglo bug en tkGprs.modemApagado
+ * 4- Arreglo que la consigna nocturna pueda se anterior a la diurna
+ * 5- El server me puede mandar resetear en cualquier momento ( en continuo sobre todo )
+ * 6- Agego al frame trasmitido la bateria ( bug )
+ * -------------------------------------------------------------------------------------------------------
  * V5.0.0
  * Al haber encontrado el problema del sistema en que la fuente de 3.6 caia al trasmitir y por eso
  * reseteaba el MCP de la placa superior, en esta version vamos a hacer 3 cosas importantes:
- * 1- Reordenar el codigo eliminando todos los controles innecesarios
- * 2- Separar los modulos de la tarea de GPRS
- * 3- Incorporar la consigna continua.
  *
  * * PwrSave
  * * Se excede en tiempo con el lote. Revisar el server
  * * Luego de excederse con el lote, espera solo 15s con el modem apagado
  *
+ *  1- Al configurar la consigna continua, chequea que este en modo pwrMode continuo.
+ *     En la configuracion por GPRS debemos cuidar primero configurar el pwrMode.
  *
  * WATCHDOG:
  * Para hacer un mejor seguimiento de las fallas, agrego a c/estado un nro.
@@ -140,20 +155,48 @@ unsigned int i,j;
 	// Inicializacion de modulos de las tareas que deben hacerce antes
 	// de arrancar el FRTOS
 	tkControlInit();
+#ifdef PRESION
 	tkAnalogInit();
+#endif
+
+#ifdef POZOS
+	tkRangeInit();
+#endif
+
 	tkGprsInit();
 
 	// Creo las tasks
 	xTaskCreate(tkCmd, "CMD", tkCmd_STACK_SIZE, NULL, tkCmd_TASK_PRIORITY,  &xHandle_tkCmd);
 	xTaskCreate(tkDigitalIn, "DIN", tkDigitalIn_STACK_SIZE, NULL, tkDigitalIn_TASK_PRIORITY,  &xHandle_tkDigitalIn);
 	xTaskCreate(tkControl, "CTL", tkControl_STACK_SIZE, NULL, tkControl_TASK_PRIORITY,  &xHandle_tkControl);
-	xTaskCreate(tkAnalogIn, "AIN", tkAIn_STACK_SIZE, NULL, tkAIn_TASK_PRIORITY,  &xHandle_tkAIn);
 	xTaskCreate(tkGprsTx, "GPTX", tkGprsTx_STACK_SIZE, NULL, tkGprsTx_TASK_PRIORITY,  &xHandle_tkGprsTx);
 	xTaskCreate(tkGprsRx, "GPRX", tkGprsRx_STACK_SIZE, NULL, tkGprsRx_TASK_PRIORITY,  &xHandle_tkGprsRx);
+
+#ifdef PRESION
+	xTaskCreate(tkAnalogIn, "AIN", tkAIn_STACK_SIZE, NULL, tkAIn_TASK_PRIORITY,  &xHandle_tkAIn);
+#endif
+
+#ifdef CONSIGNA
 	xTaskCreate(tkConsignas, "CONS", tkCons_STACK_SIZE, NULL, tkCons_TASK_PRIORITY,  &xHandle_tkConsignas);
+#endif
 
-	systemWdg = WDG_CTL + WDG_CMD + WDG_DIN + WDG_AIN + WDG_GPRSTX + WDG_GPRSRX + WDG_CSG;
+#ifdef POZOS
+	xTaskCreate(tkRange, "RANGE", tkRange_STACK_SIZE, NULL, tkRange_TASK_PRIORITY,  &xHandle_tkRange );
+#endif
 
+	systemWdg = WDG_CTL + WDG_CMD + WDG_DIN + WDG_GPRSTX + WDG_GPRSRX;
+
+#ifdef CONSIGNA
+	systemWdg +=  + WDG_CSG;
+#endif
+
+#ifdef PRESION
+	systemWdg +=  + WDG_AIN;
+#endif
+
+#ifdef POZOS
+	systemWdg +=  + WDG_RANGE;
+#endif
 	/* Arranco el RTOS. */
 	vTaskStartScheduler();
 

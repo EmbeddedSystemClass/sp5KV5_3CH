@@ -457,7 +457,7 @@ u08 xBytes = 0;
 	// libero el semaforo.
 	FreeRTOS_ioctl(&pdI2C,ioctlRELEASE_BUS_SEMPH, NULL);
 
-	FreeRTOS_write( &pdUART1, "MCP0 init OK\r\n\0", sizeof("MCP0 init OK\r\n\0") );
+	//FreeRTOS_write( &pdUART1, "MCP0 init OK\r\n\0", sizeof("MCP0 init OK\r\n\0") );
 }
 //------------------------------------------------------------------------------------
 void pvMCP_init_MCP1(u08 modo)
@@ -574,7 +574,7 @@ u08 xBytes = 0;
 	FreeRTOS_ioctl(&pdI2C,ioctlRELEASE_BUS_SEMPH, NULL);
 
 	if ( modo == 0 ) {
-		FreeRTOS_write( &pdUART1, "MCP1 init OK\r\n\0", sizeof("MCP1 init OK\r\n\0") );
+	//	FreeRTOS_write( &pdUART1, "MCP1 init OK\r\n\0", sizeof("MCP1 init OK\r\n\0") );
 	} else {
 		snprintf_P( debug_printfBuff,sizeof(debug_printfBuff),PSTR("**DEBUG:: MCP1 init !!\r\n\0"));
 		u_debugPrint(D_DEBUG, debug_printfBuff, sizeof(debug_printfBuff) );

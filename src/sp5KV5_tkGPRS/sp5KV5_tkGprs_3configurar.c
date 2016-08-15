@@ -11,7 +11,7 @@
 
 
 #include "../sp5KV5_3CH.h"
-#include "sp5KV5_3CH_tkGprs.h"
+#include "sp5KV5_tkGprs.h"
 
 static int gTR_C00(void);
 static int gTR_C01(void);
@@ -181,7 +181,7 @@ static int gTR_C00(void)
 	vTaskDelay( (portTickType)( 500 / portTICK_RATE_MS ) );
 	//
 	snprintf_P( gprs_printfBuff,sizeof(gprs_printfBuff),PSTR("\r\n%s: GPRS configure:\r\n\0"), u_now() );
-	FreeRTOS_write( &pdUART1, gprs_printfBuff, sizeof(gprs_printfBuff) );
+	u_debugPrint(D_GPRS, gprs_printfBuff, sizeof(gprs_printfBuff) );
 
 	FreeRTOS_ioctl( &pdUART0,ioctl_UART_CLEAR_RX_BUFFER, NULL);
 	g_flushRXBuffer();
@@ -224,6 +224,9 @@ static int gTR_C00(void)
 	FreeRTOS_write( &pdUART0, "AT*E2IPEV=0,0\r\0", sizeof("AT*E2IPEV=0,0\r\0") );
 	vTaskDelay( (portTickType)( 100 / portTICK_RATE_MS ) );
 	g_printRxBuffer();
+
+	snprintf_P( gprs_printfBuff,sizeof(gprs_printfBuff),PSTR("GPRS: Modem Configurado.\r\n\0"));
+	u_logPrint(gprs_printfBuff, sizeof(gprs_printfBuff) );
 
 	g_printExitMsg("C00\0");
 	return(gSST_CONFIGURAR_01);
@@ -308,6 +311,9 @@ static int gTR_C03(void)
 	FreeRTOS_write( &pdUART0, "AT+CREG?\r\0", sizeof("AT+CREG?\r\0") );
 	vTaskDelay( (portTickType)( 100 / portTICK_RATE_MS ) );
 
+	snprintf_P( gprs_printfBuff,sizeof(gprs_printfBuff),PSTR("GPRS: Banda GRPS OK.\r\n\0"));
+	u_logPrint(gprs_printfBuff, sizeof(gprs_printfBuff) );
+
 	g_printExitMsg("C03\0");
 	return(gSST_CONFIGURAR_03);
 }
@@ -388,9 +394,12 @@ static int gTR_C08(void)
 static int gTR_C09(void)
 {
 
+	snprintf_P( gprs_printfBuff,sizeof(gprs_printfBuff),PSTR("GPRS: Vinculado a la red gprs.\r\n\0"));
+	u_logPrint(gprs_printfBuff, sizeof(gprs_printfBuff) );
+
 	// Leo el SQE
 	snprintf_P( gprs_printfBuff,sizeof(gprs_printfBuff),PSTR("\r\n%s: query SQE:\r\n\0"), u_now());
-	FreeRTOS_write( &pdUART1, gprs_printfBuff, sizeof(gprs_printfBuff) );
+	u_debugPrint(D_GPRS, gprs_printfBuff, sizeof(gprs_printfBuff) );
 
 	cTimer = 5;		// Espero 5s desde que doy el comando hasta que pregunto.
 
@@ -437,8 +446,10 @@ char *ts = NULL;
 		systemVars.dbm = 113 - 2 * systemVars.csq;
 
 		snprintf_P( gprs_printfBuff,sizeof(gprs_printfBuff),PSTR("\r\nCSQ=%d,DBM=%d\r\n\0"),systemVars.csq,systemVars.dbm);
-		FreeRTOS_write( &pdUART1, gprs_printfBuff, sizeof(gprs_printfBuff) );
+		u_debugPrint(D_GPRS, gprs_printfBuff, sizeof(gprs_printfBuff) );
 
+		snprintf_P( gprs_printfBuff,sizeof(gprs_printfBuff),PSTR("GPRS: Calidad de señal %d db.\r\n\0"),systemVars.dbm );
+		u_logPrint(gprs_printfBuff, sizeof(gprs_printfBuff) );
 	}
 
 	g_printExitMsg("C11\0");
@@ -472,7 +483,7 @@ size_t xBytes;
 
 	// APN
 	snprintf_P( gprs_printfBuff,sizeof(gprs_printfBuff),PSTR("\r\n%s: GPRS set APN:\r\n\0"), u_now());
-	FreeRTOS_write( &pdUART1, gprs_printfBuff, sizeof(gprs_printfBuff) );
+	u_debugPrint(D_GPRS, gprs_printfBuff, sizeof(gprs_printfBuff) );
 
 	FreeRTOS_ioctl( &pdUART0,ioctl_UART_CLEAR_RX_BUFFER, NULL);
 	FreeRTOS_ioctl( &pdUART0,ioctl_UART_CLEAR_TX_BUFFER, NULL);
@@ -497,7 +508,7 @@ static int gTR_C14(void)
 	pTryes = 6;		// Pregunto hasta 6 veces antes de reenviar el comando
 
 	snprintf_P( gprs_printfBuff,sizeof(gprs_printfBuff),PSTR("\r\n[%s] GPRS ask IP:\r\n\0"), u_now());
-	FreeRTOS_write( &pdUART1, gprs_printfBuff, sizeof(gprs_printfBuff) );
+	u_debugPrint(D_GPRS, gprs_printfBuff, sizeof(gprs_printfBuff) );
 
 	FreeRTOS_ioctl( &pdUART0,ioctl_UART_CLEAR_RX_BUFFER, NULL);
 	FreeRTOS_ioctl( &pdUART0,ioctl_UART_CLEAR_TX_BUFFER, NULL);
@@ -599,7 +610,7 @@ char c;
 	}
 	systemVars.dlgIp[i++] = '\0';
 	snprintf_P( gprs_printfBuff,sizeof(gprs_printfBuff),PSTR("\r\nIPADDRESS=[%s]\r\n\0"),systemVars.dlgIp);
-	FreeRTOS_write( &pdUART1, gprs_printfBuff, sizeof(gprs_printfBuff) );
+	u_debugPrint(D_GPRS, gprs_printfBuff, sizeof(gprs_printfBuff) );
 
 	// Cambio de estado. Vengo de prender el modem por lo que
 	// debo mandar INITS
@@ -609,6 +620,9 @@ char c;
 	GPRS_stateVars.state.nextFrame = INIT_FRAME;
 
 	GPRS_stateVars.counters.nroLOTEtryes = MAXTRYESLOTE;
+
+	snprintf_P( gprs_printfBuff,sizeof(gprs_printfBuff),PSTR("GPRS: Direccion IP asignada.\r\n\0"));
+	u_logPrint(gprs_printfBuff, sizeof(gprs_printfBuff) );
 
 	g_printExitMsg("C20\0");
 	return( pv_cambiarEstado(gST_CONFIGURAR,gST_STANDBY) );

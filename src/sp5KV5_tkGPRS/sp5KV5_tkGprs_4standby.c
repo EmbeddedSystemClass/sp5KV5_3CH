@@ -7,7 +7,7 @@
 
 
 #include "../sp5KV5_3CH.h"
-#include "sp5KV5_3CH_tkGprs.h"
+#include "sp5KV5_tkGprs.h"
 
 static int gTR_D00(void);
 static int gTR_D01(void);

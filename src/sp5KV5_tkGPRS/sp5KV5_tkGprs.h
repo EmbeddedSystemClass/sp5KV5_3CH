@@ -5,8 +5,8 @@
  *      Author: pablo
  */
 
-#ifndef SP5KV5_3CH_TKGPRS_SP5KV5_3CH_TKGPRS_H_
-#define SP5KV5_3CH_TKGPRS_SP5KV5_3CH_TKGPRS_H_
+#ifndef SP5KV5_3CH_TKGPRS_SP5KV5_TKGPRS_H_
+#define SP5KV5_3CH_TKGPRS_SP5KV5_TKGPRS_H_
 
 u32 tickCount;
 
@@ -29,6 +29,8 @@ typedef enum {
 	// Estado OFF
 	gSST_MODEMAPAGADO_00 = 0,
 	gSST_MODEMAPAGADO_01,
+	gSST_MODEMAPAGADO_02,
+	gSST_MODEMAPAGADO_03,
 
 	gSST_MODEMPRENDIENDO_00,
 	gSST_MODEMPRENDIENDO_01,
@@ -93,6 +95,7 @@ typedef enum { MRSP_NONE = 0, MRSP_OK , MRSP_ERROR, MRSP_CONNECT, MRSP_NOCARRIER
 typedef enum { NO_FRAME = 0, INIT_FRAME, CONF_FRAME, DATA_FRAME } t_nextFrame;
 
 typedef struct {
+	s08 msgFlooding;
 	s08 msgReload;
 	t_modemResponse modemResponse;
 	t_socket socketStatus;
@@ -166,4 +169,4 @@ u08 g_GPRSprocessTilt(void);
 void g_GPRSprocessReset(void);
 s08 g_checkReloadConfig(t_tkGprs_state gprsState );
 
-#endif /* SP5KV5_3CH_TKGPRS_SP5KV5_3CH_TKGPRS_H_ */
+#endif /* SP5KV5_3CH_TKGPRS_SP5KV5_TKGPRS_H_ */

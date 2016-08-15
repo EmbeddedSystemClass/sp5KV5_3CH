@@ -12,7 +12,7 @@
 
 
 #include "../sp5KV5_3CH.h"
-#include "sp5KV5_3CH_tkGprs.h"
+#include "sp5KV5_tkGprs.h"
 
 static int gTR_E00(void);
 static int gTR_E01(void);
@@ -195,6 +195,8 @@ static int gTR_E04(void)
 {
 
 	// El socket esta cerrado. Continuo.
+	snprintf_P( gprs_printfBuff,sizeof(gprs_printfBuff),PSTR("GPRS: Socket cerrado.\r\n\0"));
+	u_logPrint(gprs_printfBuff, sizeof(gprs_printfBuff) );
 
 	qTryes = 3;		// Voy a probar hasta 3 veces mandar el comando de abrir socket
 
@@ -318,6 +320,9 @@ static int gTR_E13(void)
 {
 	// El socket abrio: cambio de estado volviendo al STANDBY
 
+	snprintf_P( gprs_printfBuff,sizeof(gprs_printfBuff),PSTR("GPRS: Socket abierto.\r\n\0"));
+	u_logPrint(gprs_printfBuff, sizeof(gprs_printfBuff) );
+
 	g_printExitMsg("E13\0");
 	return( pv_cambiarEstado(gST_OPENSOCKET, gST_STANDBY) );
 }
@@ -336,6 +341,9 @@ static int gTR_E14(void)
 static int gTR_E15(void)
 {
 	// El socket abrio: cambio de estado volviendo al STANDBY
+
+	snprintf_P( gprs_printfBuff,sizeof(gprs_printfBuff),PSTR("GPRS: Socket abierto.\r\n\0"));
+	u_logPrint(gprs_printfBuff, sizeof(gprs_printfBuff) );
 
 	g_printExitMsg("E15\0");
 	return( pv_cambiarEstado(gST_OPENSOCKET, gST_STANDBY) );

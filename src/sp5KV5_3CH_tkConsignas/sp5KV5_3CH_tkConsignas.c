@@ -9,6 +9,7 @@
 #include "../sp5KV5_3CH.h"
 #include "sp5KV5_3CH_tkConsignas.h"
 
+#ifdef CONSIGNA
 //------------------------------------------------------------------------------------
 void tkConsignas(void * pvParameters)
 {
@@ -23,7 +24,9 @@ uint32_t ulNotifiedValue;
 	snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR("starting tkConsignas..\r\n\0"));
 	FreeRTOS_write( &pdUART1, cons_printfBuff, sizeof(cons_printfBuff) );
 
+	f_dc_frameReady = FALSE;
 	initDobleConsigna();
+
 	//
 	for( ;; )
 	{
@@ -34,10 +37,15 @@ uint32_t ulNotifiedValue;
 		xResult = xTaskNotifyWait( 0x00, ULONG_MAX, &ulNotifiedValue, ((TickType_t) 100 / portTICK_RATE_MS ) );
 		// Si llego un mensaje, prendo la flag correspondiente.
 		if ( xResult == pdTRUE ) {
+
 			if ( ( ulNotifiedValue & TK_PARAM_RELOAD ) != 0 ) {
 				// Inicializo los subisitemas
 				initDobleConsigna();
 				initConsignaContinua();
+			}
+			if ( ( ulNotifiedValue & TKC_FRAME_READY ) != 0 ) {
+				// La tarea de poleo me indica que hay un frame listo.
+				f_dc_frameReady = TRUE;
 			}
 		}
 
@@ -70,3 +78,4 @@ u32 tickCount;
 	u_debugPrint(D_CONSIGNA, cons_printfBuff, sizeof(cons_printfBuff) );
 }
 //------------------------------------------------------------------------------------
+#endif

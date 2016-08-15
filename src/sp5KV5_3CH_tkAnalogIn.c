@@ -8,6 +8,9 @@
 
 #include "sp5KV5_3CH.h"
 
+#ifdef PRESION
+
+
 static char aIn_printfBuff[CHAR256];
 TimerHandle_t pollingTimer;
 
@@ -23,9 +26,10 @@ typedef enum {
 	an_ev_RELOADCONFIG = 0,		// EV_MSGreload
 	an_ev_START2POLL,			// EV_f_start2poll
 	an_ev_CTIMER_NOT_0,			// timer/counter general
+	an_ev_POLL_NOW,
 } t_analogEventos;
 
-#define anEVENT_COUNT		3
+#define anEVENT_COUNT		4
 
 static s08 anEventos[anEVENT_COUNT];
 
@@ -43,14 +47,14 @@ static struct {
 	s08 msgReload;			// flags de los mensajes recibidos.
 	s08 start2poll;			// flag que habilita a polear.
 	s08 msgPollNow;			// mensaje de POLL_FRAME
-	s08 slotComplete;		// indica que expiro el tiempo de un slot.
 	s08 saveFrameInBD;		//
 } AN_flags;
 
 static struct {
 	u16 cTimer;
 	u08 pollFrame;
-	u16 secs2poll;
+	u16 secs4poll;
+	u16 secs4save;
 } AN_counters;
 
 static u08 tkAIN_state = anST_A00;				// Estado
@@ -59,7 +63,6 @@ static frameData_t Aframe;
 
 #define CICLOS_POLEO		3		// ciclos de poleo para promediar.
 #define SECS2PWRSETTLE 		3
-#define SECS_IN_SLOT		30		// cada slot corresponde a 30s
 
 // Funciones generales
 void  pv_ANtimerCallback( TimerHandle_t pxTimer );
@@ -108,7 +111,8 @@ uint32_t ulNotifiedValue;
 
 			if ( ( ulNotifiedValue & TKA_READ_FRAME ) != 0 ) {
 				// Mensaje de polear un frame ( estando en modo servicio )
-				AN_flags.msgPollNow = TRUE;
+				if ( systemVars.wrkMode == WK_SERVICE )
+					AN_flags.msgPollNow = TRUE;
 			}
 		}
 
@@ -144,19 +148,48 @@ void tkAnalogInit(void)
 void pv_ANtimerCallback( TimerHandle_t pxTimer )
 {
 	// El timer esta en reload c/1 sec, aqui contamos los secs para
-	// completar un slot y lo indico prendiendo la flag correspondiente.
+	// completar poleo y lo indico prendiendo la flag correspondiente.
+	// En consigna continua poleo c/60s.
+	// En modo service poleo c/15s
+	// En otro modo, poleo c/systemVars.timerPoll
 
-static u08 slot_timer = SECS_IN_SLOT;
-
-	if (--slot_timer == 0 ) {
-		// Compete un slot.
-		slot_timer = SECS_IN_SLOT;
-		AN_flags.slotComplete = TRUE;
+	// Ajusto los timers.
+	if ( AN_counters.secs4poll > 0 ) {
+		--AN_counters.secs4poll;
 	}
 
-	if ( --AN_counters.secs2poll == 0 ) {
-		AN_counters.secs2poll = systemVars.timerPoll;
+	if ( AN_counters.secs4save > 0 ) {
+		--AN_counters.secs4save;
 	}
+
+	// Control del salvado de datos en memoria.
+	if ( AN_counters.secs4save == 0 ) {
+		AN_counters.secs4save = systemVars.timerPoll;
+
+		if ( systemVars.wrkMode == WK_NORMAL ) {
+			AN_flags.saveFrameInBD = TRUE;
+		}
+	}
+
+	// Control del poleo
+	if ( AN_counters.secs4poll == 0 ) {
+		AN_flags.start2poll = TRUE;
+
+		// Reajusto el timers.
+		if ( systemVars.consigna.type == CONSIGNA_CONTINUA ) {
+			AN_counters.secs4poll = 60;
+		}  else if ( systemVars.wrkMode == WK_MONITOR_FRAME ) {
+			// Monitoreo c/30s pero no salvo en memoria
+			AN_counters.secs4poll = 30;
+		} else {
+			AN_counters.secs4poll = systemVars.timerPoll;
+		}
+
+//		snprintf_P( aIn_printfBuff,CHAR128,PSTR("DEBUG SEC4POLL=%d\r\n\0"), AN_counters.secs4poll);
+//		FreeRTOS_write( &pdUART1, aIn_printfBuff, sizeof(aIn_printfBuff) );
+
+	}
+
 }
 //--------------------------------------------------------------------------------------
 static void pv_ANgetNextEvent(void)
@@ -178,6 +211,8 @@ u08 i;
 	if ( AN_flags.start2poll == TRUE ) { anEventos[an_ev_START2POLL] = TRUE; }
 	// EV03: EV_counter_NOT_0
 	if ( AN_counters.cTimer != 0 ) { anEventos[an_ev_CTIMER_NOT_0] = TRUE; }
+	// EV04: EV_POLL_NOE
+	if ( AN_flags.msgPollNow == TRUE ) { anEventos[an_ev_POLL_NOW] = TRUE; 	}
 
 }
 /*------------------------------------------------------------------------------------*/
@@ -195,9 +230,9 @@ static void pv_AINfsm(void)
 	case anST_A01:
 		if (  anEventos[an_ev_RELOADCONFIG] ) {
 			tkAIN_state = anTR_01();
-		} else if ( AN_flags.start2poll ) {
+		} else if ( anEventos[an_ev_POLL_NOW] ){
 			tkAIN_state = anTR_02();
-		} else {
+		} else if (anEventos[an_ev_START2POLL] ) {
 			tkAIN_state = anTR_03();
 		}
 		break;
@@ -229,11 +264,11 @@ static int anTR_00(void)
 {
 	// Inicializo el sistema aqui
 
+	AN_flags.msgReload = FALSE;
 	AN_flags.start2poll = FALSE;
-	AN_flags.slotComplete = FALSE;
 	AN_flags.saveFrameInBD = FALSE;
-	AN_counters.pollFrame = 1;
-	AN_counters.secs2poll = ( AN_counters.pollFrame * SECS_IN_SLOT );
+	AN_counters.secs4poll = 15;
+	AN_counters.secs4save = 15;
 
 	// PwrOn de sensores: solo en modo continuo.
 	if ( systemVars.pwrMode == PWR_CONTINUO ) {
@@ -250,12 +285,10 @@ static int anTR_01(void)
 	// MSG de autoreload configuration
 
 	AN_flags.msgReload = FALSE;
-
 	AN_flags.start2poll = FALSE;
-	AN_flags.slotComplete = FALSE;
 	AN_flags.saveFrameInBD = FALSE;
-	AN_counters.pollFrame = 1;
-	AN_counters.secs2poll = ( AN_counters.pollFrame * SECS_IN_SLOT );
+	AN_counters.secs4poll = 15;
+	AN_counters.secs4save = 15;
 
 	// PwrOn de sensores: solo en modo continuo
 	if ( systemVars.pwrMode == PWR_CONTINUO ) {
@@ -269,8 +302,18 @@ static int anTR_01(void)
 /*------------------------------------------------------------------------------------*/
 static int anTR_02(void)
 {
-	// Inicio un poleo.
+
+	// Tengo un mensaje que debo polear.
+	AN_flags.msgPollNow = FALSE;
+
 	AN_flags.start2poll = FALSE;
+
+	// Es service: no salvo en EE
+	AN_flags.saveFrameInBD = FALSE;
+
+	// Para no tener problemas con el timer
+	AN_counters.secs4poll = 60;
+	AN_counters.secs4save = 60;
 
 	// Si estoy en modo discreto, debo prender la fuente y esperar que se asiente.
 	if ( systemVars.pwrMode == PWR_DISCRETO ) {
@@ -284,64 +327,26 @@ static int anTR_02(void)
 	pv_AINprintExitMsg(2);
 	return(anST_A02);
 }
-/*------------------------------------------------------------------------------------*/
+//------------------------------------------------------------------------------------
 static int anTR_03(void)
 {
-	// Evaluo las condiciones para poder polear
-	// Los slots son de 30s y los pauta pv_ANtimerCallback. Aqui cuento estos slots
-	// para ver cuando poleo y si corresponde a un poleo de datos para alamacenar o
-	// para el sistema de consignas.
 
-	// Espero 1 segundo
-	vTaskDelay( ( TickType_t)( 1000 / portTICK_RATE_MS ) );
-	if ( AN_counters.cTimer > 0 )
-		--AN_counters.cTimer;
-
-	// Chequeo el status para evaluar AN_flags.start2poll.
+	// Inicio un poleo.
 	AN_flags.start2poll = FALSE;
-	AN_flags.saveFrameInBD = FALSE;
 
-	if ( AN_flags.slotComplete ) {
-
-		// complete un slot, pasaron 30s.Reseteo la flag.
-		AN_flags.slotComplete = FALSE;
-		--AN_counters.pollFrame;
-
-		// Veo si complete un intervalo de poleo. ( pollFrame = N sots = timerPoll )
-		if ( AN_counters.pollFrame == 0 ) {
-			AN_counters.pollFrame = ( systemVars.timerPoll / SECS_IN_SLOT );
-			AN_counters.secs2poll = ( AN_counters.pollFrame * SECS_IN_SLOT );
-
-			// En modo nomal debo polear porque se completo un pollFrame
-			if ( systemVars.wrkMode == WK_NORMAL ) {
-				AN_flags.start2poll = TRUE;
-				AN_flags.saveFrameInBD = TRUE;
-			}
-		}
-
-		// Si la consigna es continua, poleo en cada slot
-		if ( systemVars.consigna.type == CONSIGNA_CONTINUA ) {
-			AN_flags.start2poll = TRUE;
-		}
-
-		// En modo MONITOR_FRAME poleo en cada slot
-		if ( systemVars.wrkMode == WK_MONITOR_FRAME  ) {
-			AN_flags.start2poll = TRUE;
-			AN_counters.secs2poll = SECS_IN_SLOT;
-		}
+	// Si estoy en modo discreto, debo prender la fuente y esperar que se asiente.
+	if ( systemVars.pwrMode == PWR_DISCRETO ) {
+		MCP_setSensorPwr( 1 );
+		MCP_setAnalogPwr( 1 );
+		AN_counters.cTimer = SECS2PWRSETTLE;
+	} else {
+		AN_counters.cTimer = 0;
 	}
 
-	// Sin importar cuando, en modo service, si tengo un mensaje debo polear.
-	if ( ( systemVars.wrkMode == WK_SERVICE ) && ( AN_flags.msgPollNow ) ) {
-		AN_flags.start2poll = TRUE;
-	}
-
-	// Actualizo las flags.( ya las evalue )
-	AN_flags.msgPollNow = FALSE;
-
-	//pv_AINprintExitMsg(3);
-	return(anST_A01);
+	pv_AINprintExitMsg(3);
+	return(anST_A02);
 }
+/*------------------------------------------------------------------------------------*/
 static int anTR_04(void)
 {
 	// Espero que se asiente la fuente de los sensores
@@ -490,6 +495,7 @@ StatBuffer_t pxFFStatBuffer;
 
 	// Guardo en BD ?
 	if ( AN_flags.saveFrameInBD ) {
+		AN_flags.saveFrameInBD = FALSE;
 		bWrite = FF_fwrite( &Aframe, sizeof(Aframe));
 		FF_stat(&pxFFStatBuffer);
 
@@ -500,11 +506,11 @@ StatBuffer_t pxFFStatBuffer;
 			// Stats de memoria
 			snprintf_P( aIn_printfBuff, sizeof(aIn_printfBuff), PSTR("MEM [%d/%d/%d][%d/%d]\r\n\0"), pxFFStatBuffer.HEAD,pxFFStatBuffer.RD, pxFFStatBuffer.TAIL,pxFFStatBuffer.rcdsFree,pxFFStatBuffer.rcds4del);
 		}
-		FreeRTOS_write( &pdUART1, aIn_printfBuff, sizeof(aIn_printfBuff) );
+		u_debugPrint(D_BASIC, aIn_printfBuff, sizeof(aIn_printfBuff) );
 	}
 
 	// Imprimo el frame.
-	pos = snprintf_P( aIn_printfBuff, sizeof(aIn_printfBuff), PSTR("frame::{" ));
+	pos = snprintf_P( aIn_printfBuff, sizeof(aIn_printfBuff), PSTR("FRAME::{" ));
 	// timeStamp.
 	pos += snprintf_P( &aIn_printfBuff[pos], ( sizeof(aIn_printfBuff) - pos ),PSTR( "%04d%02d%02d,"),Aframe.rtc.year,Aframe.rtc.month,Aframe.rtc.day );
 	pos += snprintf_P( &aIn_printfBuff[pos], ( sizeof(aIn_printfBuff) - pos ), PSTR("%02d%02d%02d,"),Aframe.rtc.hour,Aframe.rtc.min, Aframe.rtc.sec );
@@ -517,7 +523,20 @@ StatBuffer_t pxFFStatBuffer;
 	pos += snprintf_P( &aIn_printfBuff[pos], ( sizeof(aIn_printfBuff) - pos ), PSTR("%sP=%.02f,%sL=%d"), systemVars.dChName[1],Aframe.dIn.pulses[1],systemVars.dChName[1],Aframe.dIn.level[1],systemVars.dChName[1]);
 	// Bateria
 	pos += snprintf_P( &aIn_printfBuff[pos], ( sizeof(aIn_printfBuff) - pos ), PSTR(",bt=%.02f}\r\n\0"),Aframe.batt );
-	FreeRTOS_write( &pdUART1, aIn_printfBuff, sizeof(aIn_printfBuff) );
+	//FreeRTOS_write( &pdUART1, aIn_printfBuff, sizeof(aIn_printfBuff) );
+	u_logPrint (aIn_printfBuff, sizeof(aIn_printfBuff) );
+
+	// Envio un mensaje a la tarea de la consigna diciendole que estan los datos listos
+	if ( systemVars.consigna.type == CONSIGNA_CONTINUA ) {
+		while ( xTaskNotify(xHandle_tkConsignas, TKC_FRAME_READY , eSetBits ) != pdPASS ) {
+			vTaskDelay( ( TickType_t)( 100 / portTICK_RATE_MS ) );
+		}
+	//	snprintf_P( aIn_printfBuff,sizeof(aIn_printfBuff),PSTR("DEBUG SEND MSG 2 CC\r\n\0"));
+	//	FreeRTOS_write( &pdUART1, aIn_printfBuff,sizeof(aIn_printfBuff) );
+
+	}
+
+	AN_flags.start2poll = FALSE;
 
 	pv_AINprintExitMsg(7);
 	return(anST_A01);
@@ -540,7 +559,7 @@ s16 retVal = -1;
 	// Lo determina en base al time elapsed y el timerPoll.
 	// El -1 indica un modo en que no esta poleando.
 	if ( ( systemVars.wrkMode == WK_NORMAL ) || ( systemVars.wrkMode == WK_MONITOR_FRAME )) {
-		retVal = AN_counters.secs2poll;
+		retVal = AN_counters.secs4save;
 	}
 
 	return (retVal);
@@ -552,3 +571,6 @@ void u_readAnalogFrame (frameData_t *dFrame)
 	memcpy(dFrame, &Aframe, sizeof(Aframe) );
 }
 /*------------------------------------------------------------------------------------*/
+
+#endif
+

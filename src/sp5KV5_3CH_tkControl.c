@@ -39,11 +39,30 @@ void tkControl(void * pvParameters)
 ( void ) pvParameters;
 u16 ffRcd;
 StatBuffer_t pxFFStatBuffer;
+u16 pos;
 
 	vTaskDelay( ( TickType_t)( 500 / portTICK_RATE_MS ) );
 
 	MCP_init();				// Esto prende la terminal.
 	pv_switchTerminal(ON);
+
+	// Load systemVars
+	if  ( u_loadSystemParams() == TRUE ) {
+//		snprintf_P( ctl_printfBuff,sizeof(ctl_printfBuff),PSTR("Load config OK.\r\n\0") );
+	} else {
+		u_loadDefaults();
+		u_saveSystemParams();
+//		snprintf_P( ctl_printfBuff,sizeof(ctl_printfBuff),PSTR("Load config ERROR: defaults !!\r\n\0") );
+	}
+	FreeRTOS_write( &pdUART1, ctl_printfBuff, sizeof(ctl_printfBuff) );
+
+	// Configuro el ID en el bluetooth
+//	snprintf_P( ctl_printfBuff,sizeof(ctl_printfBuff),PSTR("\r\r\r\r"));
+//	FreeRTOS_write( &pdUART1, ctl_printfBuff, sizeof(ctl_printfBuff) );
+//	vTaskDelay( ( TickType_t)( 500 / portTICK_RATE_MS ) );
+	snprintf_P( ctl_printfBuff,sizeof(ctl_printfBuff),PSTR("AT+NAME%s\r\n"),systemVars.dlgId);
+	FreeRTOS_write( &pdUART1, ctl_printfBuff, sizeof(ctl_printfBuff) );
+	vTaskDelay( ( TickType_t)( 2000 / portTICK_RATE_MS ) );
 
 	pv_wdgInit();
 
@@ -57,21 +76,25 @@ StatBuffer_t pxFFStatBuffer;
 	}
 	FreeRTOS_write( &pdUART1, ctl_printfBuff, sizeof(ctl_printfBuff) );
 
-	// Load systemVars
-	if  ( u_loadSystemParams() == TRUE ) {
-		snprintf_P( ctl_printfBuff,sizeof(ctl_printfBuff),PSTR("Load config OK.\r\n\0") );
-	} else {
-		u_loadDefaults();
-		u_saveSystemParams();
-		snprintf_P( ctl_printfBuff,sizeof(ctl_printfBuff),PSTR("Load config ERROR: defaults !!\r\n\0") );
-	}
-	FreeRTOS_write( &pdUART1, ctl_printfBuff, sizeof(ctl_printfBuff) );
-
 	// Arranco el timer de control  de la terminal
 	f_controlCallback = FALSE;
 	if ( xTimerStart( controlTimer, 0 ) != pdPASS )
 		u_panic(P_CTL_TIMERSTART);
 
+	pos = snprintf_P( ctl_printfBuff,sizeof(ctl_printfBuff),PSTR("BASIC\0"));
+
+#ifdef PRESION
+	pos = snprintf_P( &ctl_printfBuff[pos],sizeof(ctl_printfBuff)-pos,PSTR("+PRESION\0"));
+#endif
+#ifdef CONSIGNA
+	pos = snprintf_P( &ctl_printfBuff[pos],sizeof(ctl_printfBuff)-pos,PSTR("+CONSIGNA\0"));
+#endif
+#ifdef POZOS
+	pos = snprintf_P( &ctl_printfBuff[pos],sizeof(ctl_printfBuff)-pos,PSTR("+POZOS\0"));
+#endif
+
+	pos = snprintf_P( &ctl_printfBuff[pos],sizeof(ctl_printfBuff)-pos,PSTR("\r\n"));
+	FreeRTOS_write( &pdUART1, ctl_printfBuff, sizeof(ctl_printfBuff) );
 
 	snprintf_P( ctl_printfBuff,sizeof(ctl_printfBuff),PSTR("starting tkControl..\r\n\0"));
 	FreeRTOS_write( &pdUART1, ctl_printfBuff, sizeof(ctl_printfBuff) );
@@ -177,7 +200,20 @@ static u08 l_secCounter = 3;
 
 	if ( systemWdg == 0 ) {
 		wdt_reset();
-		systemWdg = WDG_CTL + WDG_CMD + WDG_DIN + WDG_AIN + WDG_GPRSTX + WDG_GPRSRX + WDG_CSG;
+		systemWdg = WDG_CTL + WDG_CMD + WDG_DIN + WDG_GPRSTX + WDG_GPRSRX;
+
+#ifdef CONSIGNA
+		systemWdg += WDG_CSG;
+#endif
+
+#ifdef PRESION
+	systemWdg +=  + WDG_AIN;
+#endif
+
+#ifdef POZOS
+	systemWdg +=  + WDG_RANGE;
+#endif
+
 	}
 }
 
@@ -298,12 +334,16 @@ static u08 tilt = 0;
 	// Deteccion que se movio.
 	if ( ( tilt == 0 ) && ( systemVars.tilt == 1) ) {
 		// Se movio. Disparo un llamado y quedo alarmado.
-		// No tengo porque mandar un mensaje a tkGPRS ya que las rutinas de APAGADO y STANDBY
-		// chequean esta alarma.
 		if ( ! f_alarmFired ) {
 			f_alarmFired = TRUE;
 			snprintf_P( ctl_printfBuff,sizeof(ctl_printfBuff),PSTR("Flood alarm fired...\r\n\0"));
 			FreeRTOS_write( &pdUART1, ctl_printfBuff, sizeof(ctl_printfBuff) );
+
+			// Mando un mensaje a tkGPRS para que disque inmediatamente
+			while ( xTaskNotify(xHandle_tkGprsTx, TKC_FLOODING , eSetBits ) != pdPASS ) {
+				vTaskDelay( ( TickType_t)( 100 / portTICK_RATE_MS ) );
+			}
+
 		}
 	}
 }

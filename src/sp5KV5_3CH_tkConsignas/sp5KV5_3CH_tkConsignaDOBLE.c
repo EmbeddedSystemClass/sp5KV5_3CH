@@ -9,6 +9,7 @@
 #include "../sp5KV5_3CH.h"
 #include "sp5KV5_3CH_tkConsignas.h"
 
+#ifdef CONSIGNA
 // ------------------------------------------------------------------------------------
 // DOBLE CONSIGNA
 // ------------------------------------------------------------------------------------
@@ -266,31 +267,83 @@ u16 now;
 		return;
 	}
 
+	// Consignas ON:
+
+	// Caso 1: C.Diurna < C.Nocturna
 	//           C.diurna                      C.nocturna
 	// |----------|-------------------------------|---------------|
 	// 0         hhmm1                          hhmm2            24
 	//   nocturna             diurna                 nocturna
 
-	if ( now <= systemVars.consigna.horaConsDia ) {
-		u_setConsignaNocturna();
-		snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR("%s Consigna Inicial: Nocturna\r\n\0"), u_now() );
+	if ( systemVars.consigna.horaConsDia < systemVars.consigna.horaConsNoc ) {
+
+		// Caso A:
+		if ( now <= systemVars.consigna.horaConsDia ) {
+			u_setConsignaNocturna();
+			snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR("%s Consigna Inicial: Nocturna\r\n\0"), u_now() );
+			u_debugPrint(D_BASIC, cons_printfBuff, sizeof(cons_printfBuff) );
+			return;
+		}
+		// Caso B:
+		if ( ( systemVars.consigna.horaConsDia <= now ) && ( now <= systemVars.consigna.horaConsNoc )) {
+			u_setConsignaDiurna();
+			snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR("%s Consigna Inicial: Diurna\r\n\0"), u_now() );
+			u_debugPrint(D_BASIC, cons_printfBuff, sizeof(cons_printfBuff) );
+			return;
+		}
+
+		// Caso C:
+		if ( now > systemVars.consigna.horaConsNoc ) {
+			u_setConsignaNocturna();
+			snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR("%s Consigna Inicial: Nocturna\r\n\0"), u_now() );
+			u_debugPrint(D_BASIC, cons_printfBuff, sizeof(cons_printfBuff) );
+			return;
+		}
+
+		snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR("ERROR al setear consignas: horas incompatibles\r\n\0"));
 		u_debugPrint(D_BASIC, cons_printfBuff, sizeof(cons_printfBuff) );
 		return;
+
 	}
 
-	if ( ( now > systemVars.consigna.horaConsDia ) && ( now <= systemVars.consigna.horaConsNoc )) {
-		u_setConsignaDiurna();
-		snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR("%s Consigna Inicial: Diurna\r\n\0"), u_now() );
+
+	// Caso 2: C.Nocturna < Diurna
+	//           C.Nocturna                      C.diurna
+	// |----------|-------------------------------|---------------|
+	// 0         hhmm2                          hhmm1            24
+	//   diurna             nocturna                 diurna
+
+	if (  systemVars.consigna.horaConsNoc < systemVars.consigna.horaConsDia ) {
+
+		// Caso A:
+		if ( now <= systemVars.consigna.horaConsNoc ) {
+			u_setConsignaDiurna();
+			snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR("%s Consigna Inicial: Diurna\r\n\0"), u_now() );
+			u_debugPrint(D_BASIC, cons_printfBuff, sizeof(cons_printfBuff) );
+			return;
+		}
+		// Caso B:
+		if ( ( systemVars.consigna.horaConsNoc <= now ) && ( now <= systemVars.consigna.horaConsDia )) {
+			u_setConsignaNocturna();
+			snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR("%s Consigna Inicial: Nocturna\r\n\0"), u_now() );
+			u_debugPrint(D_BASIC, cons_printfBuff, sizeof(cons_printfBuff) );
+			return;
+		}
+
+		// Caso C:
+		if ( now > systemVars.consigna.horaConsDia ) {
+			u_setConsignaDiurna();
+			snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR("%s Consigna Inicial: Diurna\r\n\0"), u_now() );
+			u_debugPrint(D_BASIC, cons_printfBuff, sizeof(cons_printfBuff) );
+			return;
+		}
+
+		snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR("ERROR al setear consignas: horas incompatibles\r\n\0"));
 		u_debugPrint(D_BASIC, cons_printfBuff, sizeof(cons_printfBuff) );
 		return;
+
 	}
 
-	if ( now > systemVars.consigna.horaConsNoc ) {
-		u_setConsignaNocturna();
-		snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR("%s Consigna Inicial: Nocturna\r\n\0"), u_now() );
-		u_debugPrint(D_BASIC, cons_printfBuff, sizeof(cons_printfBuff) );
-		return;
-	}
 
 }
 //------------------------------------------------------------------------------------
@@ -300,3 +353,5 @@ void initDobleConsigna(void)
 	consigna4aplicar = CONSIGNA_NONE;
 }
 //------------------------------------------------------------------------------------
+
+#endif

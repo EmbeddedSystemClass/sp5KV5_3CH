@@ -8,6 +8,7 @@
 #include "../sp5KV5_3CH.h"
 #include "sp5KV5_3CH_tkConsignas.h"
 
+#ifdef CONSIGNA
 // ------------------------------------------------------------------------------------
 // CONSIGNA CONTINUA
 // ------------------------------------------------------------------------------------
@@ -29,20 +30,19 @@ static int cTR_CC06(void);
 
 // Eventos
 typedef enum {
-	cc_ev_CTIMER_NOT_0,
+	cc_ev_PWTIMER_NOT_0,
 	cc_ev_PW_NOT_0,
+	cc_ev_FRAMEREADY,
 } t_eventos_consignaContinua;
 
-#define sm_CONSIGNACONTINUA_EVENT_COUNT 2
-
-static u08 cTimer;		// Contador de segundos
+#define sm_CONSIGNACONTINUA_EVENT_COUNT 3
 
 typedef enum { V_CERRAR, V_ABRIR } t_modoOperarValvulas;
 void pv_DCsetValvulas ( u08 vAlta, u08 vBaja );
 
 // ------------------------------------------------------------------------------------
 
-#define MAXNAME 10
+#define MAXNAME 12
 #define BGAP 0.05
 
 #define max(a,b) ( a < b ? b : a)
@@ -65,15 +65,18 @@ struct mf_type {			// Definicion de las funciones de pertenencia ( trapecios )
 // Entradas fuzzy
 struct io_type *System_Inputs;
 struct io_type io_PB;
-struct mf_type mf_pb_baja, mf_pb_medio, mf_pb_alta;
+struct mf_type mf_pb_muyBaja, mf_pb_baja, mf_pb_media, mf_pb_alta, mf_pb_muyAlta;
 
 struct io_type io_DP;
-struct mf_type mf_dp_baja, mf_dp_medio, mf_dp_alta;
+struct mf_type  mf_dp_baja, mf_dp_media, mf_dp_alta;
 
 // Salidas fuzzy
 struct io_type *System_Outputs;
 struct io_type io_PW;
 struct mf_type mf_pw_corto, mf_pw_medio, mf_pw_largo;
+
+void pv_calcularPW_LINEAL(void);
+void pv_calcularPW_FUZZY(void);
 
 void initialize_FuzzySystem(void);
 void readFuzzyInputs(void);
@@ -85,6 +88,9 @@ void defuzzificacion(void);
 
 static u08 tkCC_state;
 static float pulseWidth;
+static u16 pwTimerX100ms;
+
+#define FUZZY_CYCLE_IN_SEC	60	// Tiempo en el que se repite el ciclo
 
 //------------------------------------------------------------------------------------
 void sm_CONSIGNACONTINUA(void)
@@ -98,20 +104,20 @@ u08 i;
 	}
 
 	// Evaluo
-	if ( cTimer > 0 ) { cc_eventos[cc_ev_CTIMER_NOT_0] = TRUE; }
-	if ( pulseWidth != 0.0 ) { { cc_eventos[cc_ev_PW_NOT_0] = TRUE; }
+	if ( pwTimerX100ms > 0  ) { cc_eventos[cc_ev_PWTIMER_NOT_0] = TRUE; }
+	if ( pulseWidth != 0.0 ) { cc_eventos[cc_ev_PW_NOT_0] = TRUE; }
+	if ( f_dc_frameReady == TRUE ) { cc_eventos[cc_ev_FRAMEREADY] = TRUE; }
 
-	}
 	// Corro la FSM
 	switch ( tkCC_state ) {
 	case ccST_00:
 		tkCC_state = cTR_CC00();
 		break;
 	case ccST_01:
-		if ( cc_eventos[cc_ev_CTIMER_NOT_0] ) {
-			tkCC_state = cTR_CC01();
-		} else {
+		if ( cc_eventos[cc_ev_FRAMEREADY] ) {
 			tkCC_state = cTR_CC02();
+		} else {
+			tkCC_state = cTR_CC01();
 		}
 		break;
 	case ccST_02:
@@ -122,7 +128,7 @@ u08 i;
 		}
 		break;
 	case ccST_03:
-		if ( cc_eventos[cc_ev_CTIMER_NOT_0] ) {
+		if ( cc_eventos[cc_ev_PWTIMER_NOT_0] ) {
 			tkCC_state = cTR_CC05();
 		} else {
 			tkCC_state = cTR_CC06();
@@ -140,8 +146,8 @@ u08 i;
 static int cTR_CC00(void)
 {
 
-	// Inicializo. en 5s comienzo a regular.
-	cTimer = 5;
+	// Inicializo.
+	f_dc_frameReady = FALSE;
 
 	pv_consignaPrintExitMsg(0);
 	return(ccST_01);
@@ -149,26 +155,25 @@ static int cTR_CC00(void)
 //------------------------------------------------------------------------------------
 static int cTR_CC01(void)
 {
-	// Espero
-	 if ( cTimer > 0 ) {
-		 vTaskDelay( ( TickType_t)( 1000 / portTICK_RATE_MS ) );
-		 --cTimer;
-	 }
-
+	// No hago nada. solo espero por un mensaje de la tarea de poleo.
 	//pv_consignaPrintExitMsg(1);
 	return(ccST_01);
 }
 //------------------------------------------------------------------------------------
 static int cTR_CC02(void)
 {
-
+	// Llego un mensaje que estan los datos de la preson listos.
+	// Arranco una regulacion.
 	// Regulo aplicando la logica fuzzy
 
-	initialize_FuzzySystem();
-	readFuzzyInputs();
-	fuzzificacion();
-	rule_evaluation();
-	defuzzificacion();
+	snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR(" fuzzy START:: [%s]\r\n\0"), u_now() );
+	u_debugPrint(D_CONSIGNA, cons_printfBuff, sizeof(cons_printfBuff) );
+
+	// Borro la flag que me prendio la tk_Analog.
+	f_dc_frameReady = FALSE;
+
+	pv_calcularPW_LINEAL();
+	//pv_calcularPW_FUZZY();
 
 	pv_consignaPrintExitMsg(2);
 	return(ccST_02);
@@ -182,11 +187,17 @@ static int cTR_CC03(void)
 		// pB alta: debo cerrar la valvula para que baje similar a aplicar
 		// la consigna nocturna, o sea ingresar agua desde pA
 		pv_DCsetValvulas(V_ABRIR, V_CERRAR);
+		snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR(" fuzzy_VALVES: A-OPEN, B-CLOSE\r\n\0"));
 	} else {
 		// pB baja: debo abrir la valvula para que aumente, similar a aplicar
 		// la consigna diurna, o sea dejar escapar agua
 		pv_DCsetValvulas(V_CERRAR, V_ABRIR);
+		snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR(" fuzzy_VALVES: A-CLOSE, B-OPEN\r\n\0"));
 	}
+
+	pwTimerX100ms = (u16)(10 * pulseWidth ); // Tiempo en intervalos de 100ms que hay que esperar
+
+	u_debugPrint(D_CONSIGNA, cons_printfBuff, sizeof(cons_printfBuff) );
 
 	pv_consignaPrintExitMsg(3);
 	return(ccST_03);
@@ -194,7 +205,7 @@ static int cTR_CC03(void)
 //------------------------------------------------------------------------------------
 static int cTR_CC04(void)
 {
-	// No hay que aplicar pulso: salgo
+	// No hay que aplicar pulso: salgo.
 
 	pv_consignaPrintExitMsg(4);
 	return(ccST_01);
@@ -203,9 +214,12 @@ static int cTR_CC04(void)
 static int cTR_CC05(void)
 {
 	// Espero el tiempo del ancho del pulso aplicado PW
-	 if ( cTimer > 0 ) {
-		 vTaskDelay( ( TickType_t)( 1000 / portTICK_RATE_MS ) );
-		 --cTimer;
+	// No es un sleep de 1s sino que como la tarea se ejecuta c/100ms,
+	// el minimo intervalo para contar son estos 100ms.
+	// Esto me asegura que paso por aqui c/100ms.
+
+	 if ( pwTimerX100ms > 0 ) {
+		 --pwTimerX100ms;
 	 }
 
 	//pv_consignaPrintExitMsg(5);
@@ -218,14 +232,16 @@ static int cTR_CC06(void)
 	// Aplico un pulso de cierre de regulacion y salgo a
 	// esperar 1 minuto por otro ciclo.
 	pv_DCsetValvulas(V_CERRAR, V_CERRAR);
+	snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR(" fuzzy_VALVES: A-CLOSE, B-CLOSE\r\n\0"));
+	u_debugPrint(D_CONSIGNA, cons_printfBuff, sizeof(cons_printfBuff) );
 
-	cTimer = 60;
+	snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR(" fuzzy END\r\n\0"));
+	u_debugPrint(D_CONSIGNA, cons_printfBuff, sizeof(cons_printfBuff) );
 
 	pv_consignaPrintExitMsg(6);
 	return(ccST_01);
 }
 //------------------------------------------------------------------------------------
-
 void fuzzy_test(void)
 {
 	// Funcion para ir probando desde linea de comandos el funcionamiento.
@@ -250,26 +266,34 @@ void initialize_FuzzySystem(void)
 	strcpy(io_PB.name, "P_BAJA");	// Presion BAJA.
 	io_PB.next = &io_DP;
 	io_PB.value = 0;
-	io_PB.membership_functions = &mf_pb_baja;
+	io_PB.membership_functions = &mf_pb_muyBaja;
 
 		// Los limites de c/funcion de pertenencia los marco separando la maxima presion
 	    // admisible ( systemVars ) y dividiendola en 3 tramos.
 		// Parametro configurable.
-		strcpy( mf_pb_baja.name,"PB_bajo");
+		strcpy( mf_pb_muyBaja.name,"PB_muyBaja");
+		mf_pb_muyBaja.xA = 0.0;
+		mf_pb_muyBaja.xB = 0.0;
+		mf_pb_muyBaja.xC = 0.0;
+		mf_pb_muyBaja.xD = systemVars.cc_maxPb/4;
+		mf_pb_muyBaja.value = 0;
+		mf_pb_muyBaja.next = &mf_pb_baja;
+
+		strcpy( mf_pb_baja.name,"PB_baja");
 		mf_pb_baja.xA = 0.0;
 		mf_pb_baja.xB = systemVars.cc_maxPb/4;
 		mf_pb_baja.xC = systemVars.cc_maxPb/4;
 		mf_pb_baja.xD = systemVars.cc_maxPb/2;
 		mf_pb_baja.value = 0;
-		mf_pb_baja.next = &mf_pb_medio;
+		mf_pb_baja.next = &mf_pb_media;
 
-		strcpy( mf_pb_medio.name, "PB_medio");
-		mf_pb_medio.xA = systemVars.cc_maxPb/4;
-		mf_pb_medio.xB = systemVars.cc_maxPb/2;
-		mf_pb_medio.xC = systemVars.cc_maxPb/2;
-		mf_pb_medio.xD = systemVars.cc_maxPb*3/4;
-		mf_pb_medio.value = 0;
-		mf_pb_medio.next = &mf_pb_alta;
+		strcpy( mf_pb_media.name, "PB_media");
+		mf_pb_media.xA = systemVars.cc_maxPb/4;
+		mf_pb_media.xB = systemVars.cc_maxPb/2;
+		mf_pb_media.xC = systemVars.cc_maxPb/2;
+		mf_pb_media.xD = systemVars.cc_maxPb*3/4;
+		mf_pb_media.value = 0;
+		mf_pb_media.next = &mf_pb_alta;
 
 		strcpy( mf_pb_alta.name, "PB_alta");
 		mf_pb_alta.xA = systemVars.cc_maxPb/2;
@@ -277,7 +301,15 @@ void initialize_FuzzySystem(void)
 		mf_pb_alta.xC = 100;	// Max PB ( kg ) admisible
 		mf_pb_alta.xD = 100;
 		mf_pb_alta.value = 0;
-		mf_pb_alta.next = NULL;
+		mf_pb_alta.next = &mf_pb_muyAlta;
+
+		strcpy( mf_pb_muyAlta.name, "PB_muyAlta");
+		mf_pb_muyAlta.xA = systemVars.cc_maxPb/2;
+		mf_pb_muyAlta.xB = systemVars.cc_maxPb*3/4;
+		mf_pb_muyAlta.xC = 100;	// Max PB ( kg ) admisible
+		mf_pb_muyAlta.xD = 100;
+		mf_pb_muyAlta.value = 0;
+		mf_pb_muyAlta.next = NULL;
 
 	strcpy(io_DP.name, "DIF_PRES");		// Diferencia de presion.
 	io_DP.next = NULL;
@@ -290,15 +322,15 @@ void initialize_FuzzySystem(void)
 		mf_dp_baja.xC = 2*BGAP;		// 100
 		mf_dp_baja.xD = 3*BGAP;		// 150
 		mf_dp_baja.value = 0;
-		mf_dp_baja.next = &mf_dp_medio;
+		mf_dp_baja.next = &mf_dp_media;
 
-		strcpy( mf_dp_medio.name, "DP_medio");
-		mf_dp_medio.xA = 2*BGAP;	// 100
-		mf_dp_medio.xB = 3*BGAP;	// 150
-		mf_dp_medio.xC = 3*BGAP;	// 150
-		mf_dp_medio.xD = 4*BGAP;	// 200
-		mf_dp_medio.value = 0;
-		mf_dp_medio.next = &mf_dp_alta;
+		strcpy( mf_dp_media.name, "DP_media");
+		mf_dp_media.xA = 2*BGAP;	// 100
+		mf_dp_media.xB = 3*BGAP;	// 150
+		mf_dp_media.xC = 3*BGAP;	// 150
+		mf_dp_media.xD = 4*BGAP;	// 200
+		mf_dp_media.value = 0;
+		mf_dp_media.next = &mf_dp_alta;
 
 		strcpy( mf_dp_alta.name, "DP_alta");
 		mf_dp_alta.xA = 3*BGAP;		// 150
@@ -350,11 +382,19 @@ void readFuzzyInputs(void)
 	// Leo la entrada crisp ( pB ), calculo la otra entrada dp y
 	// seteo en la estructura de entradas los valores para poder fuzzificarlos
 	//
-	io_PB.value = systemVars.cc_pBTest;
-	io_DP.value = fabs(systemVars.cc_pBTest - systemVars.cc_pRef);
 
-	snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR("FUZZY INPUTS:: PB=%.03f, DP=%.03f\r\n\0"), io_PB.value, io_DP.value );
-	u_debugPrint(D_BASIC, cons_printfBuff, sizeof(cons_printfBuff) );
+frameData_t Cframe;
+
+//	io_PB.value = systemVars.cc_pBTest;
+//	io_DP.value = fabs(systemVars.cc_pBTest - systemVars.cc_pRef);
+
+	memset(&Cframe,'\0', sizeof(frameData_t));
+	u_readAnalogFrame (&Cframe);
+	io_PB.value = Cframe.analogIn[1];
+	io_DP.value = fabs(io_PB.value - systemVars.cc_pRef);
+
+	snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR(" fuzzy_inputs:: PB=%.03f, Pref=%.03f, DP=%.03f\r\n\0"), io_PB.value, systemVars.cc_pRef, io_DP.value );
+	u_debugPrint(D_CONSIGNA, cons_printfBuff, sizeof(cons_printfBuff) );
 
 }
 // ------------------------------------------------------------------------------------
@@ -382,52 +422,105 @@ void rule_evaluation(void)
 //	1 dp_bajo   corto      corto    corto
 //	2 dp_medio  medio      medio    corto
 //	3 dp_alto   largo      medio    corto
+/*
+ *                 1          2       3       4        5
+ *            	muyBaja		baja	media	alta	muyAlta
+ *  1-dp_bajo	corto		corto	corto	corto	medio
+ *  2-dp_medio	corto		medio	medio	medio	corto
+ *  3-dp_alto	medio		alto	alto	alto	medio
+ *
+ */
 
 	// Reglas que compiten por el pulso corto
 	// corto = max( min(
 	// a = min(1,1); b = min(3,1); c = min(3,2); d= min(3,3); e = min(2,3)
 	// corto = max(a,b,c,d,e);
+
 	mf_pw_corto.value = 0;
-	mf_pw_corto.value = max(mf_pw_corto.value, min( mf_pb_baja.value, mf_dp_baja.value) );
-	snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR("MAX( min[%.03f,%.03f],"),mf_pb_baja.value, mf_dp_baja.value );
-	u_debugPrint(D_BASIC, cons_printfBuff, sizeof(cons_printfBuff) );
+	mf_pw_corto.value = max(mf_pw_corto.value, min( mf_pb_muyBaja.value, mf_dp_baja.value) );	//1,1
+	snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR(" fuzzy_rules::MAX( min[%.03f,%.03f],"),mf_pb_muyBaja.value, mf_dp_baja.value );
+	u_debugPrint(D_CONSIGNA, cons_printfBuff, sizeof(cons_printfBuff) );
 
-	mf_pw_corto.value = max(mf_pw_corto.value, min( mf_pb_medio.value, mf_dp_baja.value) );
-	snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR("min[%.03f,%.03f],"), mf_pb_medio.value, mf_dp_baja.value );
-	u_debugPrint(D_BASIC, cons_printfBuff, sizeof(cons_printfBuff) );
+	mf_pw_corto.value = max(mf_pw_corto.value, min( mf_pb_baja.value, mf_dp_baja.value) );		//2,1
+	snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR(" min[%.03f,%.03f],"),mf_pb_baja.value, mf_dp_baja.value );
+	u_debugPrint(D_CONSIGNA, cons_printfBuff, sizeof(cons_printfBuff) );
 
-	mf_pw_corto.value = max(mf_pw_corto.value, min( mf_pb_alta.value, mf_dp_baja.value) );
+	mf_pw_corto.value = max(mf_pw_corto.value, min( mf_pb_media.value, mf_dp_baja.value) );		//3,1
+	snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR("min[%.03f,%.03f],"), mf_pb_media.value, mf_dp_baja.value );
+	u_debugPrint(D_CONSIGNA, cons_printfBuff, sizeof(cons_printfBuff) );
+
+	mf_pw_corto.value = max(mf_pw_corto.value, min( mf_pb_alta.value, mf_dp_baja.value) );		//4,1
 	snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR("min[%.03f,%.03f],"), mf_pb_alta.value, mf_dp_baja.value );
-	u_debugPrint(D_BASIC, cons_printfBuff, sizeof(cons_printfBuff) );
+	u_debugPrint(D_CONSIGNA, cons_printfBuff, sizeof(cons_printfBuff) );
 
-	mf_pw_corto.value = max(mf_pw_corto.value, min( mf_pb_alta.value, mf_dp_medio.value) );
-	snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR("min[%.03f,%.03f],"), mf_pb_alta.value, mf_dp_medio.value );
-	u_debugPrint(D_BASIC, cons_printfBuff, sizeof(cons_printfBuff) );
+	mf_pw_corto.value = max(mf_pw_corto.value, min( mf_pb_muyBaja.value, mf_dp_media.value) );	//1,2
+	snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR("min[%.03f,%.03f],"), mf_pb_muyBaja.value, mf_dp_media.value );
+	u_debugPrint(D_CONSIGNA, cons_printfBuff, sizeof(cons_printfBuff) );
 
-	mf_pw_corto.value = max(mf_pw_corto.value, min( mf_pb_alta.value, mf_dp_alta.value) );
-	snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR("min[%.03f,%.03f] ) = %.03f (pwCorto)\r\n\0"), mf_pb_alta.value, mf_dp_alta.value,mf_pw_corto.value );
-	u_debugPrint(D_BASIC, cons_printfBuff, sizeof(cons_printfBuff) );
+	mf_pw_corto.value = max(mf_pw_corto.value, min( mf_pb_muyAlta.value, mf_dp_media.value) );		//5,2
+	snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR("min[%.03f,%.03f] ) = %.03f (pwCorto)\r\n\0"), mf_pb_muyAlta.value, mf_dp_media.value,mf_pw_corto.value );
+	u_debugPrint(D_CONSIGNA, cons_printfBuff, sizeof(cons_printfBuff) );
+
+	/*
+	 *                 1          2       3       4        5
+	 *            	muyBaja		baja	media	alta	muyAlta
+	 *  ---------------------|--------|-------|-------|----------
+	 *  1-dp_bajo |										medio
+	 *  2-dp_medio|				medio	medio	medio
+	 *  3-dp_alto |	medio								medio
+	 *
+	 */
 
 	mf_pw_medio.value = 0;
-	mf_pw_medio.value = max(mf_pw_medio.value, min( mf_pb_baja.value, mf_dp_medio.value) );
-	snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR("MAX( min[%.03f,%.03f],"), mf_pb_baja.value, mf_dp_medio.value );
-	u_debugPrint(D_BASIC, cons_printfBuff, sizeof(cons_printfBuff) );
+	mf_pw_medio.value = max(mf_pw_medio.value, min( mf_pb_muyAlta.value, mf_dp_baja.value) );		//5,1
+	snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR(" fuzzy_rules::MAX( min[%.03f,%.03f],"), mf_pb_muyAlta.value, mf_dp_baja.value );
+	u_debugPrint(D_CONSIGNA, cons_printfBuff, sizeof(cons_printfBuff) );
 
-	mf_pw_medio.value = max(mf_pw_medio.value, min( mf_pb_medio.value, mf_dp_medio.value) );
-	snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR("min[%.03f,%.03f],"), mf_pb_medio.value, mf_dp_medio.value );
-	u_debugPrint(D_BASIC, cons_printfBuff, sizeof(cons_printfBuff) );
+	mf_pw_medio.value = max(mf_pw_medio.value, min( mf_pb_baja.value, mf_dp_media.value) );
+	snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR("min[%.03f,%.03f],"), mf_pb_baja.value, mf_dp_media.value );
+	u_debugPrint(D_CONSIGNA, cons_printfBuff, sizeof(cons_printfBuff) );
 
-	mf_pw_medio.value = max(mf_pw_medio.value, min( mf_pb_medio.value, mf_dp_alta.value) );
-	snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR("min[%.03f,%.03f] ) = %.03f (pwMedio)\r\n\0"), mf_pb_medio.value, mf_dp_alta.value,mf_pw_medio.value );
-	u_debugPrint(D_BASIC, cons_printfBuff, sizeof(cons_printfBuff) );
+	mf_pw_medio.value = max(mf_pw_medio.value, min( mf_pb_media.value, mf_dp_media.value) );
+	snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR("min[%.03f,%.03f],"), mf_pb_media.value, mf_dp_media.value );
+	u_debugPrint(D_CONSIGNA, cons_printfBuff, sizeof(cons_printfBuff) );
+
+	mf_pw_medio.value = max(mf_pw_medio.value, min( mf_pb_alta.value, mf_dp_media.value) );
+	snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR("min[%.03f,%.03f],"), mf_pb_alta.value, mf_dp_media.value );
+	u_debugPrint(D_CONSIGNA, cons_printfBuff, sizeof(cons_printfBuff) );
+
+	mf_pw_medio.value = max(mf_pw_medio.value, min( mf_pb_muyBaja.value, mf_dp_alta.value) );
+	snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR("min[%.03f,%.03f],"), mf_pb_muyBaja.value, mf_dp_alta.value );
+	u_debugPrint(D_CONSIGNA, cons_printfBuff, sizeof(cons_printfBuff) );
+
+	mf_pw_medio.value = max(mf_pw_medio.value, min( mf_pb_muyAlta.value, mf_dp_alta.value) );
+	snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR("min[%.03f,%.03f] ) = %.03f (pwMedio)\r\n\0"), mf_pb_muyAlta.value, mf_dp_alta.value,mf_pw_medio.value );
+	u_debugPrint(D_CONSIGNA, cons_printfBuff, sizeof(cons_printfBuff) );
+
+	/*
+	 *                 1          2       3       4        5
+	 *            	muyBaja		baja	media	alta	muyAlta
+	 *  ---------------------|--------|-------|-------|----------
+	 *  1-dp_bajo	|
+	 *  2-dp_medio	|
+	 *  3-dp_alto	|			alto	alto	alto
+	 *
+	 */
 
 	mf_pw_largo.value = 0;
 	mf_pw_largo.value = max(mf_pw_largo.value, min( mf_pb_baja.value, mf_dp_alta.value) );
-	snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR("MAX( min[%.03f,%.03f] ) = %.03f (pwLargo)\r\n\0"), mf_pb_baja.value, mf_dp_alta.value, mf_pw_largo.value );
-	u_debugPrint(D_BASIC, cons_printfBuff, sizeof(cons_printfBuff) );
+	snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR(" fuzzy_rules::MAX( min[%.03f,%.03f],"), mf_pb_baja.value, mf_dp_alta.value );
+	u_debugPrint(D_CONSIGNA, cons_printfBuff, sizeof(cons_printfBuff) );
 
-	snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR("FUZZY RULES:: PW_corto=%.03f, PW_medio=%.03f, PW_largo=%.03f\r\n\0"), mf_pw_corto.value, mf_pw_medio.value, mf_pw_largo.value );
-	u_debugPrint(D_BASIC, cons_printfBuff, sizeof(cons_printfBuff) );
+	mf_pw_largo.value = max(mf_pw_largo.value, min( mf_pb_media.value, mf_dp_alta.value) );
+	snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR("min[%.03f,%.03f],"), mf_pb_media.value, mf_dp_alta.value );
+	u_debugPrint(D_CONSIGNA, cons_printfBuff, sizeof(cons_printfBuff) );
+
+	mf_pw_largo.value = max(mf_pw_largo.value, min( mf_pb_alta.value, mf_dp_alta.value) );
+	snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR(" fuzzy_rules::MAX( min[%.03f,%.03f] ) = %.03f (pwLargo)\r\n\0"), mf_pb_alta.value, mf_dp_alta.value, mf_pw_largo.value );
+	u_debugPrint(D_CONSIGNA, cons_printfBuff, sizeof(cons_printfBuff) );
+
+	snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR(" fuzzy_rules::PW_corto=%.03f, PW_medio=%.03f, PW_largo=%.03f\r\n\0"), mf_pw_corto.value, mf_pw_medio.value, mf_pw_largo.value );
+	u_debugPrint(D_CONSIGNA, cons_printfBuff, sizeof(cons_printfBuff) );
 
 }
 // ------------------------------------------------------------------------------------
@@ -446,38 +539,24 @@ float sum_of_products, sum_of_areas, area, centroide;
 			centroide = mf->xA + ( mf->xD - mf->xA)/2;
 			sum_of_products += area * centroide;
 			sum_of_areas += area;
-			snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR("UNFUZZY:: [%s](A=%.03f,Cent=%.03f)\r\n\0"), mf->name, area, centroide );
-			u_debugPrint(D_BASIC, cons_printfBuff, sizeof(cons_printfBuff) );
+			snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR(" fuzzy_outputs:: [%s](A=%.03f,Cent=%.03f)\r\n\0"), mf->name, area, centroide );
+			u_debugPrint(D_CONSIGNA, cons_printfBuff, sizeof(cons_printfBuff) );
 
 		}
 
 		if ( sum_of_areas == 0 ) {
 			so->value = 0;
-			return;
+		} else {
+			so->value = sum_of_products / sum_of_areas;
 		}
 
-		so->value = sum_of_products / sum_of_areas;
-
 		pulseWidth = so->value;
+		snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR(" fuzzy_OUTPUT:: [%s]=%.03f\r\n\0"), so->name,so->value );
+		u_debugPrint(D_CONSIGNA, cons_printfBuff, sizeof(cons_printfBuff) );
 
-		snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR("UNFUZZY END:: [%s]=%.03f\r\n\0"), so->name,so->value );
-		u_debugPrint(D_BASIC, cons_printfBuff, sizeof(cons_printfBuff) );
+		snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR(" DEBUG_CONSIGNAS:: [pB=%.03f][pRef=%.03f][dp=%.03f]->pw=%.03f\r\n\0"),io_PB.value, systemVars.cc_pRef, io_DP.value,so->value );
+		u_debugPrint(D_CONSIGNA, cons_printfBuff, sizeof(cons_printfBuff) );
 
-
-	}
-}
-// ------------------------------------------------------------------------------------
-void writeFuzzyOutput(void)
-{
-	// Abre o cierra las valvulas el tiempo indicado por PW
-float pw;
-
-	pw = System_Outputs->value;
-	if (systemVars.cc_pBTest > systemVars.cc_pRef) {
-		// Tengo que cerrar la valvula para bajar la presion B
-	} else {
-
-		// Tengo que abrir la valvula para subir la presion B
 	}
 }
 // ------------------------------------------------------------------------------------
@@ -505,8 +584,8 @@ float res;
 	}
 	mf->value = res;
 
-	snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR("FUZZY:: [%s](%.03f,%.03f,%.03f,%.03f)->(%.03f::%.03f)\r\n\0"), mf->name, mf->xA, mf->xB, mf->xC,mf->xD, xin, mf->value );
-	u_debugPrint(D_BASIC, cons_printfBuff, sizeof(cons_printfBuff) );
+	snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR(" fuzzy_membership:: [%s](%.03f,%.03f,%.03f,%.03f)->(%.03f::%.03f)\r\n\0"), mf->name, mf->xA, mf->xB, mf->xC,mf->xD, xin, mf->value );
+	u_debugPrint(D_CONSIGNA, cons_printfBuff, sizeof(cons_printfBuff) );
 
 }
 // ------------------------------------------------------------------------------------
@@ -535,7 +614,9 @@ void pv_DCsetValvulas ( u08 vAlta, u08 vBaja )
 	// Para cerrar es 01
 
 	// Por las dudas, reconfiguro el MCP
-	pvMCP_init_MCP1(1);
+//	return;
+
+	//pvMCP_init_MCP1(1);
 
 	switch(vAlta) {
 	case V_CERRAR: // Cierro la valvula de alta ( PA )
@@ -563,4 +644,44 @@ void pv_DCsetValvulas ( u08 vAlta, u08 vBaja )
 
 	 MCP_outputsSleep();
 }
-/*------------------------------------------------------------------------------------*/
+//------------------------------------------------------------------------------------
+void pv_calcularPW_LINEAL(void)
+{
+	// Calculo el ancho de pulso en modo lineal
+
+frameData_t Cframe;
+
+	memset(&Cframe,'\0', sizeof(frameData_t));
+	u_readAnalogFrame (&Cframe);
+	io_PB.value = Cframe.analogIn[1];
+	io_DP.value = fabs(io_PB.value - systemVars.cc_pRef);
+
+	// Calculo lineal
+	if ( io_DP.value <= 0.05 ) {
+		pulseWidth = 0;
+	} else if (  ( io_DP.value > 0.05 ) &&  ( io_DP.value <= 0.5 ) ) {
+		pulseWidth = (u08)( systemVars.cc_maxPW * 2/3 * io_DP.value / 0.5 );
+	} else {
+		pulseWidth = systemVars.cc_maxPW * 2/3;
+	}
+
+	snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR(" CCONT_LINEAL_INPUTS:: PB=%.03f, Pref=%.03f, DP=%.03f\r\n\0"), io_PB.value, systemVars.cc_pRef, io_DP.value );
+	u_debugPrint(D_CONSIGNA, cons_printfBuff, sizeof(cons_printfBuff) );
+	snprintf_P( cons_printfBuff,sizeof(cons_printfBuff),PSTR(" CCONT_LINEAL_PW:: [pw=%.03f]\r\n\0"), pulseWidth );
+	u_debugPrint(D_CONSIGNA, cons_printfBuff, sizeof(cons_printfBuff) );
+
+}
+//------------------------------------------------------------------------------------
+void pv_calcularPW_FUZZY(void)
+{
+	// Calculo el ancho de pulso usando logica fuzzy
+
+	initialize_FuzzySystem();
+	readFuzzyInputs();
+	fuzzificacion();
+	rule_evaluation();
+	defuzzificacion();	// En la variable pulseWidth esta cuanto debe esperar por el pulso
+}
+//------------------------------------------------------------------------------------
+
+#endif
