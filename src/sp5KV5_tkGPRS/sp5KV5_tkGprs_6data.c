@@ -22,6 +22,7 @@ static int gTR_G09(void);
 
 static int pv_loadTail(void);
 static int pv_loadHeader(void);
+static int pv_loadDataFrame( frameData_t *Aframe,  StatBuffer_t  *pxFFStatBuffer);
 
 // Eventos locales
 typedef enum {
@@ -147,7 +148,6 @@ static int gTR_G01(void)
 	// Evaluo si hay mas registros para trasmitir y envio uno.
 
 u16 pos;
-u08 channel;
 frameData_t Aframe;
 StatBuffer_t pxFFStatBuffer;
 
@@ -156,50 +156,13 @@ StatBuffer_t pxFFStatBuffer;
 	FF_fread( &Aframe, sizeof(Aframe));
 	FF_stat(&pxFFStatBuffer);
 
+	// Siempre trasmito los datos aunque vengan papasfritas.
+	pos = pv_loadDataFrame(&Aframe, &pxFFStatBuffer);
+
+	// Trasmito por el modem.
 	FreeRTOS_ioctl( &pdUART0,ioctl_UART_CLEAR_RX_BUFFER, NULL);
 	FreeRTOS_ioctl( &pdUART0,ioctl_UART_CLEAR_TX_BUFFER, NULL);
 	g_flushRXBuffer();
-
-	// Siempre trasmito los datos aunque vengan papasfritas.
-
-	//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-	// Armo el frame
-	memset( gprs_printfBuff, '\0', sizeof(gprs_printfBuff));
-
-	// Indice de la linea
-	pos = snprintf_P( gprs_printfBuff,sizeof(gprs_printfBuff),PSTR("&CTL=%d"), pxFFStatBuffer.RD );
-
-	// Calidad del frame.
-	pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR("&ST=%d"), pxFFStatBuffer.errno );
-
-	// Aqui indico si los datos leidos de memoria son correctos o hubo un error.
-	pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR("&LINE=") );
-	// Fecha y hora
-	pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR( "%04d%02d%02d,"),Aframe.rtc.year,Aframe.rtc.month,Aframe.rtc.day );
-	pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ), PSTR("%02d%02d%02d,"),Aframe.rtc.hour,Aframe.rtc.min, Aframe.rtc.sec );
-
-#ifdef PRESION
-	// Valores analogicos
-	for ( channel = 0; channel < NRO_ANALOG_CHANNELS; channel++) {
-		pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR("%s>%.2f,"),systemVars.aChName[channel],Aframe.analogIn[channel] );
-	}
-#endif
-
-#ifdef POZOS
-	// Configuracion de canales analogicos
-	pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR("&A%d=%s"), 0,systemVars.aChName[0] );
-#endif
-
-	// Datos digitales
-	for ( channel = 0; channel < NRO_DIGITAL_CHANNELS; channel++ ) {
-		pos += snprintf_P( &gprs_printfBuff[pos], ( sizeof(gprs_printfBuff) - pos ), PSTR("%sP>%d,"), systemVars.dChName[channel],Aframe.dIn.pulses[channel] );
-	}
-	// Bateria
-	pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ), PSTR("bt>%.2f"),Aframe.batt );
-
-	//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
-	// Trasmito por el modem.
 	FreeRTOS_write( &pdUART0, gprs_printfBuff, pos );
 
 	// Imprimo
@@ -418,6 +381,53 @@ u16 pos = 0;
 	pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR("?DLGID=%s"), systemVars.dlgId );
 	pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR("&PASSWD=%s"), systemVars.passwd );
 	pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR("&VER=%s"), SP5K_REV );
+
+	return(pos);
+}
+//------------------------------------------------------------------------------------
+static int pv_loadDataFrame( frameData_t *Aframe,  StatBuffer_t  *pxFFStatBuffer)
+{
+
+u16 pos;
+u08 channel;
+u08 err;
+
+	// Armo el frame
+	memset( gprs_printfBuff, '\0', sizeof(gprs_printfBuff));
+
+	// Indice de la linea
+	pos = snprintf_P( gprs_printfBuff,sizeof(gprs_printfBuff),PSTR("&CTL=%d"), pxFFStatBuffer->RD );
+
+	// Calidad del frame.
+	err = Aframe->status + pxFFStatBuffer->errno;
+	pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR("&ST=%d"), err );
+
+	// Aqui indico si los datos leidos de memoria son correctos o hubo un error.
+	pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR("&LINE=") );
+	// Fecha y hora
+	pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR( "%04d%02d%02d,"),Aframe->rtc.year,Aframe->rtc.month,Aframe->rtc.day );
+	pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ), PSTR("%02d%02d%02d,"),Aframe->rtc.hour,Aframe->rtc.min, Aframe->rtc.sec );
+
+#ifdef PRESION
+	// Valores analogicos
+	for ( channel = 0; channel < NRO_ANALOG_CHANNELS; channel++) {
+		pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR("%s=%.2f,"),systemVars.aChName[channel],Aframe->analogIn[channel] );
+	}
+	// Datos digitales
+	for ( channel = 0; channel < NRO_DIGITAL_CHANNELS; channel++ ) {
+		pos += snprintf_P( &gprs_printfBuff[pos], ( sizeof(gprs_printfBuff) - pos ), PSTR("%sP=%d,"), systemVars.dChName[channel],Aframe->dIn.pulses[channel] );
+	}
+	// Bateria
+	pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ), PSTR("bt=%.2f"),Aframe->batt );
+#endif
+
+#ifdef POZOS
+	// Configuracion de canales analogicos
+	pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR("%s=%d,"),systemVars.aChName[0],Aframe->analogIn[0] );
+	// Datos digitales
+	pos += snprintf_P( &gprs_printfBuff[pos], ( sizeof(gprs_printfBuff) - pos ), PSTR("%s=%d,"), systemVars.dChName[0l],Aframe->dIn.level[0] );
+	pos += snprintf_P( &gprs_printfBuff[pos], ( sizeof(gprs_printfBuff) - pos ), PSTR("%s=%d"), systemVars.dChName[1],Aframe->dIn.level[1] );
+#endif
 
 	return(pos);
 }

@@ -166,6 +166,7 @@ u08 g_GPRSprocessPwrSave(void);
 u08 g_GPRSprocessAch(u08 channel);
 u08 g_GPRSprocessDch(u08 channel);
 u08 g_GPRSprocessTilt(void);
+u08 g_GPRSprocessMaxRange(void);
 void g_GPRSprocessReset(void);
 s08 g_checkReloadConfig(t_tkGprs_state gprsState );
 

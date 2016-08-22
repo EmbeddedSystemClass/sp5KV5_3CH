@@ -6,8 +6,9 @@
  */
 
 
-#include "../sp5KV5_3CH.h"
 #include "sp5KV5_3CH_tkConsignas.h"
+
+#include "../sp5KV5_3CH.h"
 
 #ifdef CONSIGNA
 //------------------------------------------------------------------------------------

@@ -1,12 +1,14 @@
 /*
  * sp5KV5_3CH_tkConsignas.h
  *
- *  Created on: 10 de jun. de 2016
+ *  Created on: 16 de ago. de 2016
  *      Author: pablo
  */
 
 #ifndef SP5KV5_3CH_TKCONSIGNAS_SP5KV5_3CH_TKCONSIGNAS_H_
 #define SP5KV5_3CH_TKCONSIGNAS_SP5KV5_3CH_TKCONSIGNAS_H_
+
+#include "../sp5KV5_3CH.h"
 
 char cons_printfBuff[CHAR128];
 

@@ -178,6 +178,8 @@ int i;
 
 #ifdef POZOS
 	systemVars.pwrMode = PWR_CONTINUO;
+	systemVars.tiltEnabled = FALSE;
+
 	systemVars.timerPoll = 60;			// Poleo c/1 minutos
 
 	// Canales digitales
@@ -269,7 +271,14 @@ u08 channel;
 		taskYIELD();
 
 	systemVars.initByte = 0x49;
-	strncpy_P(systemVars.dlgId, PSTR("DEF400\0"),DLGID_LENGTH);
+#ifdef PRESION
+	strncpy_P(systemVars.dlgId, PSTR("DEF000\0"),DLGID_LENGTH);
+#endif
+
+#ifdef POZOS
+	strncpy_P(systemVars.dlgId, PSTR("PZ000\0"),DLGID_LENGTH);
+#endif
+
 	strncpy_P(systemVars.serverPort, PSTR("80\0"),PORT_LENGTH	);
 	strncpy_P(systemVars.passwd, PSTR("spymovil123\0"),PASSWD_LENGTH);
 	strncpy_P(systemVars.serverScript, PSTR("/cgi-bin/sp5K/sp5K.pl\0"),SCRIPT_LENGTH);
@@ -299,6 +308,9 @@ u08 channel;
 #ifdef POZOS
 	systemVars.pwrMode = PWR_CONTINUO;
 	systemVars.timerPoll = 60;			// Poleo c/1 minutos
+	systemVars.timerDial = 60;
+	systemVars.maxRange = 500;
+
 	strncpy_P(systemVars.aChName[0], PSTR("H\0"),3);
 
 	// Canales digitales
@@ -633,14 +645,16 @@ void u_configConsignas( u08 modo, char *s_horaConsDia,char *s_horaConsNoc,char *
 }
 /*------------------------------------------------------------------------------------*/
 #ifdef POZOS
+
 s08 u_configMaxRange(char *s_tPoll)
 {
 u16 maxRange;
 
-	// El timerpoll no puede ser menor de 25cms.
+	// La maxima distancia puede ser menor de 25cms no mayor de 700
 
 	maxRange = abs((u16) ( atol(s_tPoll) ));
 	if ( maxRange < 25 ) { maxRange = 25; }
+	if ( maxRange > 700 ) { maxRange = 700; }
 
 	while ( xSemaphoreTake( sem_SYSVars, ( TickType_t ) 1 ) != pdTRUE )
 		taskYIELD();
@@ -657,10 +671,10 @@ void u_rangeSignal(t_binary action)
 	// Genera una senal de prendido/apagado del sensor
 	switch ( action ) {
 	case RUN:
-		sbi(RM_RUN_PORT, RM_RUN_BIT);
+		cbi(RM_RUN_PORT, RM_RUN_BIT);
 		break;
 	case STOP:
-		cbi(RM_RUN_PORT, RM_RUN_BIT);
+		sbi(RM_RUN_PORT, RM_RUN_BIT);
 		break;
 	}
 }

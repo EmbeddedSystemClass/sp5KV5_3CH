@@ -55,7 +55,7 @@
 // DEFINICION DEL TIPO DE SISTEMA
 //----------------------------------------------------------------------------
 #define SP5K_REV "5.0.0"
-#define SP5K_DATE "@ 20160815"
+#define SP5K_DATE "@ 20160822"
 
 #define SP5K_MODELO "sp5KV3 HW:avr1284P R5.0"
 #define SP5K_VERSION "FW:FRTOS8"
@@ -68,8 +68,8 @@
 // PERSONALIZACION DEL FIRMWARE
 
 //#define CONSIGNA
-#define PRESION
-//#define POZOS
+//#define PRESION
+#define POZOS
 
 //----------------------------------------------------------------------------
 // TASKS
@@ -120,10 +120,9 @@ wdgStatus_t wdgStatus;
 
 // Mensajes entre tareas
 #define TK_PARAM_RELOAD			0x01	// to tkAnalogIN: reload
-#define TKA_READ_FRAME			0x02	// to tkAnalogIN: (mode service) read a frame
+#define TK_READ_FRAME			0x02	// to tkAnalogIN/tk_Range: (mode service) read a frame
 #define TKC_FRAME_READY			0x04	// to tkConsignas: frame ready
 #define TKC_FLOODING			0x08	// to tkGprs: tilt on
-#define TKR_READ_FRAME			0x10	// to tRange: (mode service) read a frame
 //------------------------------------------------------------------------------------
 
 xSemaphoreHandle sem_SYSVars;
@@ -162,7 +161,7 @@ typedef struct {
 	dinData_t dIn;							// 12
 	double analogIn[NRO_ANALOG_CHANNELS];	// 12
 	double batt;							// 4
-	s08 status;
+	u08 status;
 
 } frameData_t;	// 38 bytes
 

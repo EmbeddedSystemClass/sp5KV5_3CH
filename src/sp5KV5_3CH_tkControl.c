@@ -40,6 +40,7 @@ void tkControl(void * pvParameters)
 u16 ffRcd;
 StatBuffer_t pxFFStatBuffer;
 u16 pos;
+s08 loadParamStatus = FALSE;
 
 	vTaskDelay( ( TickType_t)( 500 / portTICK_RATE_MS ) );
 
@@ -48,21 +49,25 @@ u16 pos;
 
 	// Load systemVars
 	if  ( u_loadSystemParams() == TRUE ) {
-//		snprintf_P( ctl_printfBuff,sizeof(ctl_printfBuff),PSTR("Load config OK.\r\n\0") );
+		loadParamStatus = TRUE;
 	} else {
 		u_loadDefaults();
 		u_saveSystemParams();
-//		snprintf_P( ctl_printfBuff,sizeof(ctl_printfBuff),PSTR("Load config ERROR: defaults !!\r\n\0") );
+		loadParamStatus = FALSE;
 	}
-	FreeRTOS_write( &pdUART1, ctl_printfBuff, sizeof(ctl_printfBuff) );
 
-	// Configuro el ID en el bluetooth
-//	snprintf_P( ctl_printfBuff,sizeof(ctl_printfBuff),PSTR("\r\r\r\r"));
-//	FreeRTOS_write( &pdUART1, ctl_printfBuff, sizeof(ctl_printfBuff) );
-//	vTaskDelay( ( TickType_t)( 500 / portTICK_RATE_MS ) );
+	// Configuro el ID en el bluetooth: debe hacerse antes que nada
 	snprintf_P( ctl_printfBuff,sizeof(ctl_printfBuff),PSTR("AT+NAME%s\r\n"),systemVars.dlgId);
 	FreeRTOS_write( &pdUART1, ctl_printfBuff, sizeof(ctl_printfBuff) );
 	vTaskDelay( ( TickType_t)( 2000 / portTICK_RATE_MS ) );
+
+	// Mensaje de load Status.
+	if ( loadParamStatus ) {
+		snprintf_P( ctl_printfBuff,sizeof(ctl_printfBuff),PSTR("Load config OK.\r\n\0") );
+	} else {
+		snprintf_P( ctl_printfBuff,sizeof(ctl_printfBuff),PSTR("Load config ERROR: defaults !!\r\n\0") );
+	}
+	FreeRTOS_write( &pdUART1, ctl_printfBuff, sizeof(ctl_printfBuff) );
 
 	pv_wdgInit();
 
@@ -81,19 +86,21 @@ u16 pos;
 	if ( xTimerStart( controlTimer, 0 ) != pdPASS )
 		u_panic(P_CTL_TIMERSTART);
 
-	pos = snprintf_P( ctl_printfBuff,sizeof(ctl_printfBuff),PSTR("BASIC\0"));
+	pos = snprintf_P( ctl_printfBuff,sizeof(ctl_printfBuff),PSTR("Modules:: BASIC\0"));
 
 #ifdef PRESION
-	pos = snprintf_P( &ctl_printfBuff[pos],sizeof(ctl_printfBuff)-pos,PSTR("+PRESION\0"));
-#endif
-#ifdef CONSIGNA
-	pos = snprintf_P( &ctl_printfBuff[pos],sizeof(ctl_printfBuff)-pos,PSTR("+CONSIGNA\0"));
-#endif
-#ifdef POZOS
-	pos = snprintf_P( &ctl_printfBuff[pos],sizeof(ctl_printfBuff)-pos,PSTR("+POZOS\0"));
+	pos += snprintf_P( &ctl_printfBuff[pos],sizeof(ctl_printfBuff),PSTR("+PRESION\0"));
 #endif
 
-	pos = snprintf_P( &ctl_printfBuff[pos],sizeof(ctl_printfBuff)-pos,PSTR("\r\n"));
+#ifdef CONSIGNA
+	pos += snprintf_P( &ctl_printfBuff[pos],sizeof(ctl_printfBuff),PSTR("+CONSIGNA\0"));
+#endif
+
+#ifdef POZOS
+	pos += snprintf_P( &ctl_printfBuff[pos],sizeof(ctl_printfBuff),PSTR("+POZOS\0"));
+#endif
+
+	pos += snprintf_P( &ctl_printfBuff[pos],sizeof(ctl_printfBuff),PSTR("\r\n"));
 	FreeRTOS_write( &pdUART1, ctl_printfBuff, sizeof(ctl_printfBuff) );
 
 	snprintf_P( ctl_printfBuff,sizeof(ctl_printfBuff),PSTR("starting tkControl..\r\n\0"));
@@ -200,18 +207,18 @@ static u08 l_secCounter = 3;
 
 	if ( systemWdg == 0 ) {
 		wdt_reset();
-		systemWdg = WDG_CTL + WDG_CMD + WDG_DIN + WDG_GPRSTX + WDG_GPRSRX;
+		systemWdg = WDG_CTL + WDG_CMD + WDG_GPRSTX + WDG_GPRSRX;
 
 #ifdef CONSIGNA
 		systemWdg += WDG_CSG;
 #endif
 
 #ifdef PRESION
-	systemWdg +=  + WDG_AIN;
+	systemWdg += WDG_AIN + WDG_DIN;
 #endif
 
 #ifdef POZOS
-	systemWdg +=  + WDG_RANGE;
+	systemWdg += WDG_RANGE;
 #endif
 
 	}

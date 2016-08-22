@@ -155,6 +155,7 @@ unsigned int i,j;
 	// Inicializacion de modulos de las tareas que deben hacerce antes
 	// de arrancar el FRTOS
 	tkControlInit();
+
 #ifdef PRESION
 	tkAnalogInit();
 #endif
@@ -167,12 +168,12 @@ unsigned int i,j;
 
 	// Creo las tasks
 	xTaskCreate(tkCmd, "CMD", tkCmd_STACK_SIZE, NULL, tkCmd_TASK_PRIORITY,  &xHandle_tkCmd);
-	xTaskCreate(tkDigitalIn, "DIN", tkDigitalIn_STACK_SIZE, NULL, tkDigitalIn_TASK_PRIORITY,  &xHandle_tkDigitalIn);
 	xTaskCreate(tkControl, "CTL", tkControl_STACK_SIZE, NULL, tkControl_TASK_PRIORITY,  &xHandle_tkControl);
 	xTaskCreate(tkGprsTx, "GPTX", tkGprsTx_STACK_SIZE, NULL, tkGprsTx_TASK_PRIORITY,  &xHandle_tkGprsTx);
 	xTaskCreate(tkGprsRx, "GPRX", tkGprsRx_STACK_SIZE, NULL, tkGprsRx_TASK_PRIORITY,  &xHandle_tkGprsRx);
 
 #ifdef PRESION
+	xTaskCreate(tkDigitalIn, "DIN", tkDigitalIn_STACK_SIZE, NULL, tkDigitalIn_TASK_PRIORITY,  &xHandle_tkDigitalIn);
 	xTaskCreate(tkAnalogIn, "AIN", tkAIn_STACK_SIZE, NULL, tkAIn_TASK_PRIORITY,  &xHandle_tkAIn);
 #endif
 
@@ -184,18 +185,18 @@ unsigned int i,j;
 	xTaskCreate(tkRange, "RANGE", tkRange_STACK_SIZE, NULL, tkRange_TASK_PRIORITY,  &xHandle_tkRange );
 #endif
 
-	systemWdg = WDG_CTL + WDG_CMD + WDG_DIN + WDG_GPRSTX + WDG_GPRSRX;
+	systemWdg = WDG_CTL + WDG_CMD + WDG_GPRSTX + WDG_GPRSRX;
 
 #ifdef CONSIGNA
-	systemWdg +=  + WDG_CSG;
+	systemWdg += WDG_CSG;
 #endif
 
 #ifdef PRESION
-	systemWdg +=  + WDG_AIN;
+	systemWdg += WDG_AIN + WDG_DIN;
 #endif
 
 #ifdef POZOS
-	systemWdg +=  + WDG_RANGE;
+	systemWdg += WDG_RANGE;
 #endif
 	/* Arranco el RTOS. */
 	vTaskStartScheduler();
@@ -209,10 +210,21 @@ static void pv_initMPU(void)
 {
 	// Son acciones que se hacen antes de arrancar el RTOS
 
+#ifdef CONSIGNA
 	// Configuracion de pines:
 	// Los pines del micro que resetean los latches de caudal son salidas.
 	sbi(Q_DDR, Q0_CTL_PIN);
 	sbi(Q_DDR, Q1_CTL_PIN);
+#endif
+
+#ifdef POZOS
+	// RANGE METER
+	cbi(RM_PW_DDR, RM_PW_BIT);		// PW es entrada
+	cbi(RM_DIN0_DDR, RM_DIN0_BIT);	// DIN0 es entrada
+	cbi(RM_DIN1_DDR, RM_DIN1_BIT);	// DIN1 es entrada
+
+	sbi(RM_RUN_DDR, RM_RUN_BIT);	// RUN es salida
+#endif
 
 	// El pin de control de la terminal es entrada
 	cbi(TERMSW_DDR, TERMSW_BIT);

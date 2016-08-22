@@ -20,6 +20,7 @@
 
 #include "sp5KV5_3CH.h"
 
+#ifdef PRESION
 static void pv_clearQ(void);
 static void pv_pollQ(void);
 
@@ -127,3 +128,4 @@ static void pv_clearQ(void)
 	sbi(Q_PORT, Q1_CTL_PIN);
 }
 /*------------------------------------------------------------------------------------*/
+#endif

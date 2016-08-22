@@ -49,11 +49,11 @@ FCB_t FCB;
 #define pdFF_ERRNO_NONE		0
 #define pdFF_ERRNO_MEMFULL	1
 #define pdFF_ERRNO_MEMWR	2
-#define pdFF_ERRNO_MEMEMPTY	3
-#define pdFF_ERRNO_MEMRD	4
-#define pdFF_ERRNO_RDCKS	5
-#define pdFF_ERRNO_RDNOTAG	6
-#define pdFF_ERRNO_INIT		7
+#define pdFF_ERRNO_MEMEMPTY	4
+#define pdFF_ERRNO_MEMRD	8
+#define pdFF_ERRNO_RDCKS	16
+#define pdFF_ERRNO_RDNOTAG	32
+#define pdFF_ERRNO_INIT		64
 
 
 //------------------------------------------------------------------------------------

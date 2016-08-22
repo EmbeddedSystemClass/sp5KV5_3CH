@@ -178,6 +178,7 @@ u08 i;
 
 	// timerpoll
 	pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR("&TPOLL=%d"), systemVars.timerPoll);
+
 #ifdef PRESION
 	// timerdial
 	pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR("&TDIAL=%d"), systemVars.timerDial);
@@ -211,15 +212,22 @@ u08 i;
 	for ( i = 0; i < NRO_ANALOG_CHANNELS; i++) {
 		pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR("&A%d=%s,%d,%d,%d,%.02f"), i,systemVars.aChName[i],systemVars.Imin[i], systemVars.Imax[i], systemVars.Mmin[i], systemVars.Mmax[i]);
 	}
-#endif
-
-#ifdef POZOS
-	// Configuracion de canales analogicos
-	pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR("&A%d=%s"), 0,systemVars.aChName[0] );
-#endif
 	// Configuracion de canales digitales
 	pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR("&D0=%s,%.02f"),systemVars.dChName[0],systemVars.magPP[0]);
 	pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR("&D1=%s,%.02f"),systemVars.dChName[1],systemVars.magPP[1]);
+
+#endif
+
+#ifdef POZOS
+	// Configuracion del MAXRANGE
+	pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR("&MRANGE=%d"),systemVars.maxRange );
+	// Configuracion de canales analogicos
+	pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR("&C0=%s"),systemVars.aChName[0] );
+	// Configuracion de canales digitales
+	pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR("&C1=%s"),systemVars.dChName[0]);
+	pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR("&C2=%s"),systemVars.dChName[1]);
+
+#endif
 	// Reset status
 	pos += snprintf_P( &gprs_printfBuff[pos],( CHAR256 - pos ),PSTR("&WDG=%d\0"),wdgStatus.resetCause );
 	// GPRS sent
@@ -314,6 +322,7 @@ u08 saveFlag = 0;
 #endif
 
 #ifdef POZOS
+	saveFlag += g_GPRSprocessMaxRange();
 	saveFlag += g_GPRSprocessAch(0);
 #endif
 	// Canales digitales

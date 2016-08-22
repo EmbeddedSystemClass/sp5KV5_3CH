@@ -66,18 +66,15 @@ u08 i;
 		GPRS_stateVars.state.subState = gTR_A00();
 		break;
 	case gSST_MODEMAPAGADO_01:
-		// MSG RELOAD
+
 		if ( a_eventos[a_ev_MSGRELOAD] ) {
+			// MSG RELOAD
 			GPRS_stateVars.state.subState = gTR_A01();
-			break;
-		}
-		// FLOODING
-		if ( a_eventos[a_ev_FLOODING] )  {
+		} else if ( a_eventos[a_ev_FLOODING] )  {
+			// FLOODING
 			GPRS_stateVars.state.subState = gTR_A03();
-			break;
-		}
-		// CTIMER
-		if ( a_eventos[a_ev_AWAIT_NOT_0] )  {
+		} else if ( a_eventos[a_ev_AWAIT_NOT_0] )  {
+			// CTIMER
 			GPRS_stateVars.state.subState = gTR_A02();
 		} else {
 			GPRS_stateVars.state.subState = gTR_A04();
@@ -171,6 +168,7 @@ static int gTR_A03(void)
 //------------------------------------------------------------------------------------
 static int gTR_A04(void)
 {
+	// Expiro el tiempo de espera. Debo discar.
 	// Evaluo si estoy dentro de un intervalo de pwrSave
 
 RtcTimeType_t rtcDateTime;
@@ -204,7 +202,7 @@ u16 now;
 
 quit:
 
-	//g_printExitMsg("A04\0");
+	g_printExitMsg("A04\0");
 	return(gSST_MODEMAPAGADO_02);
 
 }
@@ -222,7 +220,7 @@ static int gTR_A05(void)
 //------------------------------------------------------------------------------------
 static int gTR_A06(void)
 {
-	//g_printExitMsg("A06\0");
+	g_printExitMsg("A06\0");
 	return(gSST_MODEMAPAGADO_03);
 }
 //------------------------------------------------------------------------------------
@@ -241,9 +239,16 @@ static void pv_configCTimer(u08 modo)
 		GPRS_stateVars.counters.awaitSecs = 15;
 		break;
 	case TINIT_MSGRELOAD:	// MSG RELOAD
-		GPRS_stateVars.counters.awaitSecs = 15;
+		if ( systemVars.wrkMode == WK_SERVICE ) {
+			// Pasamos a modo service: quedo apagado indefinidamente
+			GPRS_stateVars.counters.awaitSecs = 0xFFFF;
+		} else {
+			// Regargo la configuracion y arranco en 15s
+			GPRS_stateVars.counters.awaitSecs = 15;
+		}
 		break;
 	case TINIT_NORMAL:		// NORMAL( continuo o discreto )
+		// Situacion al ingresar al estado.
 		switch (systemVars.wrkMode ) {
 		case WK_SERVICE:
 			// En modo service me quedo en forma indefinida

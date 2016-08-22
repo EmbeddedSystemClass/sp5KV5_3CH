@@ -329,6 +329,41 @@ quit:
 	return(ret);
 }
 //------------------------------------------------------------------------------------
+u08 g_GPRSprocessMaxRange(void)
+{
+	//	La linea recibida es del tipo: <h1>INIT_OK:CLOCK=1402251122:TPOLL=600:TDIAL=10300:PWRM=DISC:CD=1230:CN=0530</h1>
+
+char *p, *s;
+u08 ret = 0;
+char localStr[32];
+char *stringp;
+char *token;
+char *delim = ",=:><";
+
+	tickCount = xTaskGetTickCount();
+	s = FreeRTOS_UART_getFifoPtr(&pdUART0);
+	p = strstr(s, "MRANGE");
+	if ( p == NULL )
+		goto quit;
+
+	// Copio el mensaje enviado a un buffer local porque la funcion strsep lo modifica.
+	memset(localStr,'\0',32);
+	memcpy(localStr,p,sizeof(localStr));
+
+	stringp = localStr;
+	token = strsep(&stringp,delim);	// MRANGE
+
+	token = strsep(&stringp,delim);	// value
+	u_configMaxRange(token);
+	ret = 1;
+	snprintf_P( gprs_printfBuff,sizeof(gprs_printfBuff),PSTR(".[%06lu] tkGprs:: Reconfig MRANGE\r\n\0"),tickCount);
+
+	u_debugPrint(D_GPRS, gprs_printfBuff, sizeof(gprs_printfBuff) );
+
+quit:
+	return(ret);
+}
+//------------------------------------------------------------------------------------
 void g_GPRSprocessReset(void)
 {
 	// El server me respondio con RESET para que borre las flags de alarma.

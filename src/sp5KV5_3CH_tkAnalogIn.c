@@ -109,7 +109,7 @@ uint32_t ulNotifiedValue;
 				AN_flags.msgReload = TRUE;
 			}
 
-			if ( ( ulNotifiedValue & TKA_READ_FRAME ) != 0 ) {
+			if ( ( ulNotifiedValue & TK_READ_FRAME ) != 0 ) {
 				// Mensaje de polear un frame ( estando en modo servicio )
 				if ( systemVars.wrkMode == WK_SERVICE )
 					AN_flags.msgPollNow = TRUE;
