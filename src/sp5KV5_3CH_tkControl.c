@@ -88,7 +88,7 @@ s08 loadParamStatus = FALSE;
 
 	pos = snprintf_P( ctl_printfBuff,sizeof(ctl_printfBuff),PSTR("Modules:: BASIC\0"));
 
-#ifdef PRESION
+#ifdef OSE_3CH
 	pos += snprintf_P( &ctl_printfBuff[pos],sizeof(ctl_printfBuff),PSTR("+PRESION\0"));
 #endif
 
@@ -96,7 +96,7 @@ s08 loadParamStatus = FALSE;
 	pos += snprintf_P( &ctl_printfBuff[pos],sizeof(ctl_printfBuff),PSTR("+CONSIGNA\0"));
 #endif
 
-#ifdef POZOS
+#ifdef OSE_POZOS
 	pos += snprintf_P( &ctl_printfBuff[pos],sizeof(ctl_printfBuff),PSTR("+POZOS\0"));
 #endif
 
@@ -213,11 +213,11 @@ static u08 l_secCounter = 3;
 		systemWdg += WDG_CSG;
 #endif
 
-#ifdef PRESION
+#if defined(OSE_3CH) || defined(UTE_8CH)
 	systemWdg += WDG_AIN + WDG_DIN;
 #endif
 
-#ifdef POZOS
+#ifdef OSE_POZOS
 	systemWdg += WDG_RANGE;
 #endif
 

@@ -55,7 +55,7 @@
 // DEFINICION DEL TIPO DE SISTEMA
 //----------------------------------------------------------------------------
 #define SP5K_REV "5.0.0"
-#define SP5K_DATE "@ 20160822"
+#define SP5K_DATE "@ 20160829"
 
 #define SP5K_MODELO "sp5KV3 HW:avr1284P R5.0"
 #define SP5K_VERSION "FW:FRTOS8"
@@ -67,9 +67,10 @@
 //----------------------------------------------------------------------------
 // PERSONALIZACION DEL FIRMWARE
 
-//#define CONSIGNA
-//#define PRESION
-#define POZOS
+//#define UTE_8CH
+#define CONSIGNA
+#define OSE_3CH
+//#define OSE_POZOS
 
 //----------------------------------------------------------------------------
 // TASKS
@@ -147,12 +148,24 @@ typedef enum { CONSIGNA_OFF = 0, CONSIGNA_DOBLE, CONSIGNA_CONTINUA, CONSIGNA_NON
 #define PASSWD_LENGTH		15
 #define PARAMNAME_LENGTH	5
 
+#ifdef UTE_8CH
+#define NRO_ANALOG_CHANNELS		8
+#define NRO_DIGITAL_CHANNELS	4
+#endif
+
+#ifdef OSE_3CH
 #define NRO_ANALOG_CHANNELS		3
 #define NRO_DIGITAL_CHANNELS	2
+#endif
+
+#ifdef OSE_POZOS
+#define NRO_ANALOG_CHANNELS		1
+#define NRO_DIGITAL_CHANNELS	2
+#endif
 
 typedef struct {
-	u08 level[NRO_ANALOG_CHANNELS];		// 2
-	double pulses[NRO_ANALOG_CHANNELS];	// 8
+	u08 level[NRO_DIGITAL_CHANNELS];		// 2
+	double pulses[NRO_DIGITAL_CHANNELS];	// 8
 } dinData_t;
 
 typedef struct {
@@ -224,7 +237,7 @@ typedef struct {
 	double Mmax[NRO_ANALOG_CHANNELS];
 
 	// Configuracion de canales digitales
-	double magPP[2];
+	double magPP[NRO_DIGITAL_CHANNELS];
 
 	s08 roaming;
 
@@ -267,7 +280,6 @@ s08 u_configMaxRange(char *s_tPoll);
 
 char nowStr[32];
 
-void u_readAnalogFrame (frameData_t *dFrame);
 void u_readDataFrame (frameData_t *dFrame);
 s16 u_readTimeToNextPoll(void);
 u32 u_readTimeToNextDial(void);

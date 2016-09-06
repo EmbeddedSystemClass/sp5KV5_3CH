@@ -176,7 +176,7 @@ int i;
 	systemVars.dChName[0][PARAMNAME_LENGTH - 1] = '\0';
 	systemVars.dChName[1][PARAMNAME_LENGTH - 1] = '\0';
 
-#ifdef POZOS
+#ifdef OSE_POZOS
 	systemVars.pwrMode = PWR_CONTINUO;
 	systemVars.tiltEnabled = FALSE;
 
@@ -271,11 +271,12 @@ u08 channel;
 		taskYIELD();
 
 	systemVars.initByte = 0x49;
-#ifdef PRESION
+
+#if defined(OSE_3CH) || defined(UTE_8CH)
 	strncpy_P(systemVars.dlgId, PSTR("DEF000\0"),DLGID_LENGTH);
 #endif
 
-#ifdef POZOS
+#ifdef OSE_POZOS
 	strncpy_P(systemVars.dlgId, PSTR("PZ000\0"),DLGID_LENGTH);
 #endif
 
@@ -305,7 +306,7 @@ u08 channel;
 	// Detector de Tilt.
 	systemVars.tiltEnabled = FALSE;
 
-#ifdef POZOS
+#ifdef OSE_POZOS
 	systemVars.pwrMode = PWR_CONTINUO;
 	systemVars.timerPoll = 60;			// Poleo c/1 minutos
 	systemVars.timerDial = 60;
@@ -320,7 +321,7 @@ u08 channel;
 	systemVars.magPP[1] = 1;
 #endif
 
-#ifdef PRESION
+#ifdef OSE_3CH
 	systemVars.pwrMode = PWR_DISCRETO;
 	systemVars.timerPoll = 300;			// Poleo c/5 minutos
 	systemVars.timerDial = 1800;		// Transmito c/3 hs.
@@ -342,6 +343,28 @@ u08 channel;
 	systemVars.magPP[0] = 0.1;
 	strncpy_P(systemVars.dChName[1], PSTR("v1\0"),3);
 	systemVars.magPP[1] = 0.1;
+#endif
+
+#ifdef UTE_8CH
+	systemVars.pwrMode = PWR_CONTINUO;
+	systemVars.timerPoll = 60;			// Poleo c/5 minutos
+
+	// Todos los canales quedan por default en 0-20mA, 0-6k.
+	for ( channel = 0; channel < NRO_ANALOG_CHANNELS ; channel++) {
+		systemVars.Imin[channel] = 0;
+		systemVars.Imax[channel] = 20;
+		systemVars.Mmin[channel] = 0;
+		systemVars.Mmax[channel] = 6.0;
+
+		strncpy_P(systemVars.aChName[channel], PSTR("X\0"),3);
+	}
+
+	// Canales digitales
+	for ( channel = 0; channel < NRO_DIGITAL_CHANNELS ; channel++) {
+		strncpy_P(systemVars.dChName[channel], PSTR("X\0"),3);
+		systemVars.magPP[channel] = 0.1;
+	}
+
 #endif
 
 #ifdef CONSIGNA
@@ -644,7 +667,7 @@ void u_configConsignas( u08 modo, char *s_horaConsDia,char *s_horaConsNoc,char *
 
 }
 /*------------------------------------------------------------------------------------*/
-#ifdef POZOS
+#ifdef OSE_POZOS
 
 s08 u_configMaxRange(char *s_tPoll)
 {

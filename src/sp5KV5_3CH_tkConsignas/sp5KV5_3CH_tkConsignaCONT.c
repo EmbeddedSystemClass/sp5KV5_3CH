@@ -389,7 +389,7 @@ frameData_t Cframe;
 //	io_DP.value = fabs(systemVars.cc_pBTest - systemVars.cc_pRef);
 
 	memset(&Cframe,'\0', sizeof(frameData_t));
-	u_readAnalogFrame (&Cframe);
+	u_readDataFrame (&Cframe);
 	io_PB.value = Cframe.analogIn[1];
 	io_DP.value = fabs(io_PB.value - systemVars.cc_pRef);
 
@@ -652,7 +652,7 @@ void pv_calcularPW_LINEAL(void)
 frameData_t Cframe;
 
 	memset(&Cframe,'\0', sizeof(frameData_t));
-	u_readAnalogFrame (&Cframe);
+	u_readDataFrame (&Cframe);
 	io_PB.value = Cframe.analogIn[1];
 	io_DP.value = fabs(io_PB.value - systemVars.cc_pRef);
 

@@ -20,7 +20,7 @@
 
 #include "sp5KV5_3CH.h"
 
-#ifdef PRESION
+#ifdef OSE_3CH
 static void pv_clearQ(void);
 static void pv_pollQ(void);
 
@@ -88,9 +88,9 @@ u32 tickCount;
 	// Leo el GPIO.
 	retS = MCP_query2Din( &din0, &din1 );
 	if ( retS ) {
-		// Levels
-		digIn.level[0] = din0;
-		digIn.level[1] = din1;
+		// Levels: El firmware de OSE_3CH no puede leer niveles.
+		digIn.level[0] = 0;
+		digIn.level[1] = 0;
 
 		// Counts
 		debugQ = FALSE;

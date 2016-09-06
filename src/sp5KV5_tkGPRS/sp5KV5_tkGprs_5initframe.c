@@ -179,7 +179,7 @@ u08 i;
 	// timerpoll
 	pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR("&TPOLL=%d"), systemVars.timerPoll);
 
-#ifdef PRESION
+#ifdef OSE_3CH
 	// timerdial
 	pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR("&TDIAL=%d"), systemVars.timerDial);
 	// tilt
@@ -207,18 +207,19 @@ u08 i;
 	memset(gprs_printfBuff, '\0', sizeof(gprs_printfBuff));
 	pos = 0;
 
-#ifdef PRESION
+#if defined(OSE_3CH) || defined(UTE_8CH)
 	// Configuracion de canales analogicos
 	for ( i = 0; i < NRO_ANALOG_CHANNELS; i++) {
 		pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR("&A%d=%s,%d,%d,%d,%.02f"), i,systemVars.aChName[i],systemVars.Imin[i], systemVars.Imax[i], systemVars.Mmin[i], systemVars.Mmax[i]);
 	}
 	// Configuracion de canales digitales
-	pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR("&D0=%s,%.02f"),systemVars.dChName[0],systemVars.magPP[0]);
-	pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR("&D1=%s,%.02f"),systemVars.dChName[1],systemVars.magPP[1]);
+	for ( i = 0; i < NRO_DIGITAL_CHANNELS; i++) {
+		pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR("&D%d=%s,%.02f"),i,systemVars.dChName[i],systemVars.magPP[i]);
+	}
 
 #endif
 
-#ifdef POZOS
+#ifdef OSE_POZOS
 	// Configuracion del MAXRANGE
 	pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR("&MRANGE=%d"),systemVars.maxRange );
 	// Configuracion de canales analogicos
@@ -311,7 +312,7 @@ u08 saveFlag = 0;
 	saveFlag = g_GPRSprocessPwrMode();
 	saveFlag += g_GPRSprocessTimerPoll();
 
-#ifdef PRESION
+#ifdef OSE_3CH
 	saveFlag += g_GPRSprocessTimerDial();
 	saveFlag += g_GPRSprocessPwrSave();
 	saveFlag += g_GPRSprocessTilt();
@@ -319,15 +320,36 @@ u08 saveFlag = 0;
 	saveFlag += g_GPRSprocessAch(0);
 	saveFlag += g_GPRSprocessAch(1);
 	saveFlag += g_GPRSprocessAch(2);
-#endif
-
-#ifdef POZOS
-	saveFlag += g_GPRSprocessMaxRange();
-	saveFlag += g_GPRSprocessAch(0);
-#endif
 	// Canales digitales
 	saveFlag += g_GPRSprocessDch(0);
 	saveFlag += g_GPRSprocessDch(1);
+#endif
+
+#ifdef UTE_8CH
+	// Canales analogicos.
+	saveFlag += g_GPRSprocessAch(0);
+	saveFlag += g_GPRSprocessAch(1);
+	saveFlag += g_GPRSprocessAch(2);
+	saveFlag += g_GPRSprocessAch(3);
+	saveFlag += g_GPRSprocessAch(4);
+	saveFlag += g_GPRSprocessAch(5);
+	saveFlag += g_GPRSprocessAch(6);
+	saveFlag += g_GPRSprocessAch(7);
+	// Canales digitales
+	saveFlag += g_GPRSprocessDch(0);
+	saveFlag += g_GPRSprocessDch(1);
+	saveFlag += g_GPRSprocessDch(2);
+	saveFlag += g_GPRSprocessDch(3);
+#endif
+
+#ifdef OSE_POZOS
+	saveFlag += g_GPRSprocessMaxRange();
+	saveFlag += g_GPRSprocessAch(0);
+	// Canales digitales
+	saveFlag += g_GPRSprocessDch(0);
+	saveFlag += g_GPRSprocessDch(1);
+#endif
+
 
 	if ( saveFlag > 0 ) {
 		if ( u_saveSystemParams() ) {

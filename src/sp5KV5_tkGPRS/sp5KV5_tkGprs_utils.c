@@ -329,6 +329,8 @@ quit:
 	return(ret);
 }
 //------------------------------------------------------------------------------------
+#ifdef OSE_POZOS
+
 u08 g_GPRSprocessMaxRange(void)
 {
 	//	La linea recibida es del tipo: <h1>INIT_OK:CLOCK=1402251122:TPOLL=600:TDIAL=10300:PWRM=DISC:CD=1230:CN=0530</h1>
@@ -363,6 +365,7 @@ char *delim = ",=:><";
 quit:
 	return(ret);
 }
+#endif
 //------------------------------------------------------------------------------------
 void g_GPRSprocessReset(void)
 {

@@ -8,7 +8,7 @@
 
 #include "sp5KV5_3CH.h"
 
-#ifdef POZOS
+#ifdef OSE_POZOS
 
 static char range_printfBuff[CHAR128];
 
@@ -481,7 +481,6 @@ s16 retVal = -1;
 /*------------------------------------------------------------------------------------*/
 void u_readDataFrame (frameData_t *dFrame)
 {
-
 	memcpy(dFrame, &Aframe, sizeof(Aframe) );
 }
 //----------------------------------------------------------------------------------------

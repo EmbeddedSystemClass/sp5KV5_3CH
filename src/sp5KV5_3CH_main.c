@@ -15,7 +15,7 @@
  *
  * Configurar consigna continua en GPRS.
  *
- * VERSION 5.0.0 @ 2016-08-04:
+ * VERSION 5.0.0 @ 2016-08-29:
  * ---------------------------
  * 1- Defino una funcion logprint para mejorar el entendimiento de los mensajes.
  * 2- Configuro el ID del Bluetooth con el dlgId cuando arranco
@@ -23,6 +23,11 @@
  * 4- Arreglo que la consigna nocturna pueda se anterior a la diurna
  * 5- El server me puede mandar resetear en cualquier momento ( en continuo sobre todo )
  * 6- Agego al frame trasmitido la bateria ( bug )
+ * 7- El mismo firmware base lo uso para POZOS,OSE_3CH,UTE_8CH,CONSIGNAS usando #defines
+ * 8- OSE_3CH: los canales digitales solo cuentan pulsos, no miden niveles ya que el circuito
+ *    de la placa analogica esta hecho para esto, por lo que elimino todo lo referente a niveles
+ *    de este firmware.
+ * 9- POZOS: Cuentan pulsos y niveles ya que el circuito lo permite.
  * -------------------------------------------------------------------------------------------------------
  * V5.0.0
  * Al haber encontrado el problema del sistema en que la fuente de 3.6 caia al trasmitir y por eso
@@ -156,11 +161,11 @@ unsigned int i,j;
 	// de arrancar el FRTOS
 	tkControlInit();
 
-#ifdef PRESION
+#if defined(OSE_3CH) || defined(UTE_8CH)
 	tkAnalogInit();
 #endif
 
-#ifdef POZOS
+#ifdef OSE_POZOS
 	tkRangeInit();
 #endif
 
@@ -172,7 +177,7 @@ unsigned int i,j;
 	xTaskCreate(tkGprsTx, "GPTX", tkGprsTx_STACK_SIZE, NULL, tkGprsTx_TASK_PRIORITY,  &xHandle_tkGprsTx);
 	xTaskCreate(tkGprsRx, "GPRX", tkGprsRx_STACK_SIZE, NULL, tkGprsRx_TASK_PRIORITY,  &xHandle_tkGprsRx);
 
-#ifdef PRESION
+#if defined(OSE_3CH) || defined(UTE_8CH)
 	xTaskCreate(tkDigitalIn, "DIN", tkDigitalIn_STACK_SIZE, NULL, tkDigitalIn_TASK_PRIORITY,  &xHandle_tkDigitalIn);
 	xTaskCreate(tkAnalogIn, "AIN", tkAIn_STACK_SIZE, NULL, tkAIn_TASK_PRIORITY,  &xHandle_tkAIn);
 #endif
@@ -181,7 +186,7 @@ unsigned int i,j;
 	xTaskCreate(tkConsignas, "CONS", tkCons_STACK_SIZE, NULL, tkCons_TASK_PRIORITY,  &xHandle_tkConsignas);
 #endif
 
-#ifdef POZOS
+#ifdef OSE_POZOS
 	xTaskCreate(tkRange, "RANGE", tkRange_STACK_SIZE, NULL, tkRange_TASK_PRIORITY,  &xHandle_tkRange );
 #endif
 
@@ -191,11 +196,11 @@ unsigned int i,j;
 	systemWdg += WDG_CSG;
 #endif
 
-#ifdef PRESION
+#if defined(OSE_3CH) || defined(UTE_8CH)
 	systemWdg += WDG_AIN + WDG_DIN;
 #endif
 
-#ifdef POZOS
+#ifdef OSE_POZOS
 	systemWdg += WDG_RANGE;
 #endif
 	/* Arranco el RTOS. */
@@ -217,7 +222,7 @@ static void pv_initMPU(void)
 	sbi(Q_DDR, Q1_CTL_PIN);
 #endif
 
-#ifdef POZOS
+#ifdef OSE_POZOS
 	// RANGE METER
 	cbi(RM_PW_DDR, RM_PW_BIT);		// PW es entrada
 	cbi(RM_DIN0_DDR, RM_DIN0_BIT);	// DIN0 es entrada

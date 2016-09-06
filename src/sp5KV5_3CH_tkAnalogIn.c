@@ -8,7 +8,7 @@
 
 #include "sp5KV5_3CH.h"
 
-#ifdef PRESION
+#if defined(OSE_3CH) || defined(UTE_8CH)
 
 
 static char aIn_printfBuff[CHAR256];
@@ -389,12 +389,14 @@ static int anTR_06(void)
 
 s08 retS;
 u16 adcRetValue;
+u08 i;
 
 	// Espero 1 segundo
 	vTaskDelay( ( TickType_t)( 1000 / portTICK_RATE_MS ) );
 	if ( AN_counters.cTimer > 0 )
 		--AN_counters.cTimer;
 
+#ifdef OSE_3CH
 	// Genero un poleo.
 	retS = ADS7827_readCh0( &adcRetValue);	// AIN0->ADC3;
 	rAIn[0] += adcRetValue;
@@ -415,7 +417,18 @@ u16 adcRetValue;
 	rAIn[3] += adcRetValue;
 	snprintf_P( aIn_printfBuff,sizeof(aIn_printfBuff),PSTR("\tch_3,adc_1,val=%d,r1=%.0f\r\n\0"), adcRetValue, rAIn[3]);
 	u_debugPrint(D_DATA, aIn_printfBuff, sizeof(aIn_printfBuff) );
+#endif
 
+#ifdef UTE_8CH
+
+	for ( i = 0; i < NRO_ANALOG_CHANNELS; i++ ) {
+		retS = ADS7828_read(i, &adcRetValue);
+		rAIn[i] += adcRetValue;
+		snprintf_P( aIn_printfBuff,sizeof(aIn_printfBuff),PSTR("\tch_%02d,adc_%02d,val=%d,r%02d=%.0f\r\n\0"),i,i,adcRetValue,i,rAIn[i]);
+		u_debugPrint(D_DATA, aIn_printfBuff, sizeof(aIn_printfBuff) );
+	}
+
+#endif
 	pv_AINprintExitMsg(6);
 	return(anST_A03);
 
@@ -445,7 +458,7 @@ StatBuffer_t pxFFStatBuffer;
 		MCP_setAnalogPwr( 0 );
 	}
 
-	// Promedio canales analogicos 0..2 y bateria (3)
+	// Promedio canales analogicos y bateria
 	for ( channel = 0; channel < (NRO_ANALOG_CHANNELS + 1); channel++) {
 		rAIn[channel] /= CICLOS_POLEO;
 		tickCount = xTaskGetTickCount();
@@ -519,13 +532,15 @@ StatBuffer_t pxFFStatBuffer;
 		pos += snprintf_P( &aIn_printfBuff[pos], ( sizeof(aIn_printfBuff) - pos ), PSTR("%s=%.02f,"),systemVars.aChName[channel],Aframe.analogIn[channel] );
 	}
 	// Valores digitales
-	pos += snprintf_P( &aIn_printfBuff[pos], ( sizeof(aIn_printfBuff) - pos ), PSTR("%sP=%.02f,%sL=%d,"), systemVars.dChName[0],Aframe.dIn.pulses[0],systemVars.dChName[0],Aframe.dIn.level[0],systemVars.dChName[0]);
-	pos += snprintf_P( &aIn_printfBuff[pos], ( sizeof(aIn_printfBuff) - pos ), PSTR("%sP=%.02f,%sL=%d"), systemVars.dChName[1],Aframe.dIn.pulses[1],systemVars.dChName[1],Aframe.dIn.level[1],systemVars.dChName[1]);
+	for ( channel = 0; channel < NRO_DIGITAL_CHANNELS; channel++) {
+		pos += snprintf_P( &aIn_printfBuff[pos], sizeof(aIn_printfBuff), PSTR("%sP=%.02f,"), systemVars.dChName[channel],Aframe.dIn.pulses[channel] );
+	}
 	// Bateria
 	pos += snprintf_P( &aIn_printfBuff[pos], ( sizeof(aIn_printfBuff) - pos ), PSTR(",bt=%.02f}\r\n\0"),Aframe.batt );
 	//FreeRTOS_write( &pdUART1, aIn_printfBuff, sizeof(aIn_printfBuff) );
 	u_logPrint (aIn_printfBuff, sizeof(aIn_printfBuff) );
 
+#ifdef CONSIGNA
 	// Envio un mensaje a la tarea de la consigna diciendole que estan los datos listos
 	if ( systemVars.consigna.type == CONSIGNA_CONTINUA ) {
 		while ( xTaskNotify(xHandle_tkConsignas, TKC_FRAME_READY , eSetBits ) != pdPASS ) {
@@ -533,8 +548,8 @@ StatBuffer_t pxFFStatBuffer;
 		}
 	//	snprintf_P( aIn_printfBuff,sizeof(aIn_printfBuff),PSTR("DEBUG SEND MSG 2 CC\r\n\0"));
 	//	FreeRTOS_write( &pdUART1, aIn_printfBuff,sizeof(aIn_printfBuff) );
-
 	}
+#endif
 
 	AN_flags.start2poll = FALSE;
 
@@ -565,7 +580,7 @@ s16 retVal = -1;
 	return (retVal);
 }
 /*------------------------------------------------------------------------------------*/
-void u_readAnalogFrame (frameData_t *dFrame)
+void u_readDataFrame (frameData_t *dFrame)
 {
 
 	memcpy(dFrame, &Aframe, sizeof(Aframe) );
