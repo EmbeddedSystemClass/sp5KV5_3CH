@@ -54,8 +54,8 @@
 
 // DEFINICION DEL TIPO DE SISTEMA
 //----------------------------------------------------------------------------
-#define SP5K_REV "5.0.0"
-#define SP5K_DATE "@ 20160829"
+#define SP5K_REV "5.0.1"
+#define SP5K_DATE "@ 20160908"
 
 #define SP5K_MODELO "sp5KV3 HW:avr1284P R5.0"
 #define SP5K_VERSION "FW:FRTOS8"
@@ -68,9 +68,9 @@
 // PERSONALIZACION DEL FIRMWARE
 
 //#define UTE_8CH
-#define CONSIGNA
-#define OSE_3CH
-//#define OSE_POZOS
+//#define CONSIGNA
+//#define OSE_3CH
+#define OSE_POZOS
 
 //----------------------------------------------------------------------------
 // TASKS
@@ -276,7 +276,7 @@ u16 u_convertHHMM2min(u16 HHMM );
 u16 u_convertMINS2hhmm ( u16 mins );
 void u_reset(void);
 void u_rangeSignal(t_binary action);
-s08 u_configMaxRange(char *s_tPoll);
+s08 u_configMaxRange(char *s_maxRange);
 
 char nowStr[32];
 

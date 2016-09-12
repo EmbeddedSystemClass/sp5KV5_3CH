@@ -136,12 +136,20 @@ static void cmdHelpFunction(void)
 	FreeRTOS_write( &pdUART1, cmd_printfBuff, sizeof(cmd_printfBuff) );
 	snprintf_P( cmd_printfBuff,sizeof(cmd_printfBuff),PSTR("  log {on,off} \r\n\0"));
 	FreeRTOS_write( &pdUART1, cmd_printfBuff, sizeof(cmd_printfBuff) );
+#ifdef OSE_3CH
 	snprintf_P( cmd_printfBuff,sizeof(cmd_printfBuff),PSTR("  A{0..2} aname imin imax mmin mmax\r\n\0"));
 	FreeRTOS_write( &pdUART1, cmd_printfBuff, sizeof(cmd_printfBuff) );
+#endif
+#ifdef OSE_POZOS
+	snprintf_P( cmd_printfBuff,sizeof(cmd_printfBuff),PSTR("  C0 aname\r\n\0"));
+	FreeRTOS_write( &pdUART1, cmd_printfBuff, sizeof(cmd_printfBuff) );
+#endif
+
 	snprintf_P( cmd_printfBuff,sizeof(cmd_printfBuff),PSTR("  D{0..1} dname magp\r\n\0"));
 	FreeRTOS_write( &pdUART1, cmd_printfBuff, sizeof(cmd_printfBuff) );
 	snprintf_P( cmd_printfBuff,sizeof(cmd_printfBuff),PSTR("  apn, roaming {on|off}, port, ip, script, passwd\r\n\0"));
 	FreeRTOS_write( &pdUART1, cmd_printfBuff, sizeof(cmd_printfBuff) );
+
 #ifdef CONSIGNA
 	snprintf_P( cmd_printfBuff,sizeof(cmd_printfBuff),PSTR("  consigna {off|doble|continua}\r\n\0"));
 	FreeRTOS_write( &pdUART1, cmd_printfBuff, sizeof(cmd_printfBuff) );
@@ -152,6 +160,7 @@ static void cmdHelpFunction(void)
 	snprintf_P( cmd_printfBuff,sizeof(cmd_printfBuff),PSTR(" fuzzy\r\n\0"));
 	FreeRTOS_write( &pdUART1, cmd_printfBuff, sizeof(cmd_printfBuff) );
 #endif
+
 	snprintf_P( cmd_printfBuff,sizeof(cmd_printfBuff),PSTR("  save\r\n\0"));
 	FreeRTOS_write( &pdUART1, cmd_printfBuff, sizeof(cmd_printfBuff) );
 	snprintf_P( cmd_printfBuff,sizeof(cmd_printfBuff),PSTR("  (SM) mcp devId regAddr regValue\r\n\0"));
@@ -160,6 +169,7 @@ static void cmdHelpFunction(void)
 	FreeRTOS_write( &pdUART1, cmd_printfBuff, sizeof(cmd_printfBuff) );
 	snprintf_P( cmd_printfBuff,sizeof(cmd_printfBuff),PSTR("  (SM) led {0|1},gprspwr {0|1},gprssw {0|1},termpwr {0|1},sensorpwr {0|1},analogpwr {0|1}\r\n\0"));
 	FreeRTOS_write( &pdUART1, cmd_printfBuff, sizeof(cmd_printfBuff) );
+
 #ifdef CONSIGNA
 	snprintf_P( cmd_printfBuff,sizeof(cmd_printfBuff),PSTR("  (SM) clearQ0 clearQ1\r\n\0"));
 	FreeRTOS_write( &pdUART1, cmd_printfBuff, sizeof(cmd_printfBuff) );
@@ -467,7 +477,7 @@ StatBuffer_t pxFFStatBuffer;
 	snprintf_P( cmd_printfBuff,sizeof(cmd_printfBuff),PSTR("  batt{0-15V}\r\n\0"));
 	FreeRTOS_write( &pdUART1, cmd_printfBuff, sizeof(cmd_printfBuff) );
 
-#if defined(OSE_3CH) || defined(UTE_8CH)
+#ifdef OSE_3CH
 	for ( channel = 0; channel < NRO_ANALOG_CHANNELS; channel++) {
 		snprintf_P( cmd_printfBuff,sizeof(cmd_printfBuff),PSTR("  a%d{%d-%dmA/%d-%.02f}(%s)\r\n\0"),channel, systemVars.Imin[channel],systemVars.Imax[channel],systemVars.Mmin[channel],systemVars.Mmax[channel], systemVars. aChName[channel] );
 		FreeRTOS_write( &pdUART1, cmd_printfBuff, sizeof(cmd_printfBuff) );
@@ -567,7 +577,8 @@ StatBuffer_t pxFFStatBuffer;
 	pos += snprintf_P( &cmd_printfBuff[pos], sizeof(cmd_printfBuff),PSTR( "%04d%02d%02d,"),Cframe.rtc.year,Cframe.rtc.month,Cframe.rtc.day );
 	pos += snprintf_P( &cmd_printfBuff[pos], sizeof(cmd_printfBuff), PSTR("%02d%02d%02d,"),Cframe.rtc.hour,Cframe.rtc.min, Cframe.rtc.sec );
 
-	pos += snprintf_P( &cmd_printfBuff[pos], sizeof(cmd_printfBuff), PSTR("%s=%d,"),systemVars.aChName[0],Cframe.analogIn[0] );
+	// Range
+	pos += snprintf_P( &cmd_printfBuff[pos], sizeof(cmd_printfBuff), PSTR("%s=%.0f,"),systemVars.aChName[0],Cframe.analogIn[0] );
 
 	// Valores digitales
 	pos += snprintf_P( &cmd_printfBuff[pos], sizeof(cmd_printfBuff), PSTR("%s=%d,"), systemVars.dChName[0],Cframe.dIn.level[0]);
@@ -797,13 +808,23 @@ u08 argc;
 	}
 
 	// CANALES ANALOGICOS
+
+#ifdef OSE_POZOS
+	if (!strcmp_P( strupr(argv[1]), PSTR("C0\0"))) {
+		retS = u_configAnalogCh( 0, argv[2],NULL,NULL,NULL,NULL);
+		retS ? pv_snprintfP_OK() : 	pv_snprintfP_ERR();
+		return;
+	}
+#endif
+
+#ifdef OSE_3CH
+
 	if (!strcmp_P( strupr(argv[1]), PSTR("A0\0"))) {
 		retS = u_configAnalogCh( 0, argv[2],argv[3],argv[4],argv[5],argv[6]);
 		retS ? pv_snprintfP_OK() : 	pv_snprintfP_ERR();
 		return;
 	}
 
-#if defined(OSE_3CH) || defined(UTE_8CH)
 	if (!strcmp_P( strupr(argv[1]), PSTR("A1\0"))) {
 		retS = u_configAnalogCh( 1, argv[2],argv[3],argv[4],argv[5],argv[6]);
 		retS ? pv_snprintfP_OK() : 	pv_snprintfP_ERR();
@@ -818,6 +839,18 @@ u08 argc;
 #endif
 
 #ifdef UTE_8CH
+	if (!strcmp_P( strupr(argv[1]), PSTR("A1\0"))) {
+		retS = u_configAnalogCh( 1, argv[2],argv[3],argv[4],argv[5],argv[6]);
+		retS ? pv_snprintfP_OK() : 	pv_snprintfP_ERR();
+		return;
+	}
+
+	if (!strcmp_P( strupr(argv[1]), PSTR("A2\0"))) {
+		retS = u_configAnalogCh( 2, argv[2],argv[3],argv[4],argv[5],argv[6]);
+		retS ? pv_snprintfP_OK() : 	pv_snprintfP_ERR();
+		return;
+	}
+
 	if (!strcmp_P( strupr(argv[1]), PSTR("A3\0"))) {
 		retS = u_configAnalogCh( 3, argv[2],argv[3],argv[4],argv[5],argv[6]);
 		retS ? pv_snprintfP_OK() : 	pv_snprintfP_ERR();
@@ -874,6 +907,21 @@ u08 argc;
 		retS ? pv_snprintfP_OK() : 	pv_snprintfP_ERR();
 		return;
 	}
+
+#ifdef OSE_POZOS
+	// MAXRANGE
+	if (!strcmp_P( strupr(argv[1]), PSTR("MAXRANGE\0"))) {
+		retS = u_configMaxRange(argv[2]);
+
+		// tk_range: notifico en modo persistente. Si no puedo, me voy a resetear por watchdog. !!!!
+		while ( xTaskNotify(xHandle_tkRange, TK_PARAM_RELOAD , eSetBits ) != pdPASS ) {
+			vTaskDelay( ( TickType_t)( 100 / portTICK_RATE_MS ) );
+		}
+
+		retS ? pv_snprintfP_OK() : 	pv_snprintfP_ERR();
+		return;
+	}
+#endif
 
 #ifdef OSE_3CH
 

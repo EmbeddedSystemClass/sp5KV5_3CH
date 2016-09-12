@@ -669,13 +669,13 @@ void u_configConsignas( u08 modo, char *s_horaConsDia,char *s_horaConsNoc,char *
 /*------------------------------------------------------------------------------------*/
 #ifdef OSE_POZOS
 
-s08 u_configMaxRange(char *s_tPoll)
+s08 u_configMaxRange(char *s_maxRange)
 {
 u16 maxRange;
 
 	// La maxima distancia puede ser menor de 25cms no mayor de 700
 
-	maxRange = abs((u16) ( atol(s_tPoll) ));
+	maxRange = abs((u16) ( atol(s_maxRange) ));
 	if ( maxRange < 25 ) { maxRange = 25; }
 	if ( maxRange > 700 ) { maxRange = 700; }
 

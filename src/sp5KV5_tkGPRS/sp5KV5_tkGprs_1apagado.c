@@ -239,7 +239,7 @@ static void pv_configCTimer(u08 modo)
 		GPRS_stateVars.counters.awaitSecs = 15;
 		break;
 	case TINIT_MSGRELOAD:	// MSG RELOAD
-		if ( systemVars.wrkMode == WK_SERVICE ) {
+		if ( (systemVars.wrkMode == WK_SERVICE ) || (systemVars.wrkMode == WK_MONITOR_FRAME ))  {
 			// Pasamos a modo service: quedo apagado indefinidamente
 			GPRS_stateVars.counters.awaitSecs = 0xFFFF;
 		} else {

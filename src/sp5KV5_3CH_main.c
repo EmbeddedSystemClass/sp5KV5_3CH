@@ -8,6 +8,13 @@
  * git remote add REM_SP5KV4 https://github.com/ppeluffo/sp5KV4.git
  * git push -u REM_SP5KV4 master
  * -------------------------------------------------------------------------------------------------------
+ * VERSION 5.0.1 @ 2016-09-08: POZOS
+ * ---------------------------------
+ * Los sensores miden hasta 700cms, y los pulsos son de 58us/cms, por lo tanto el ancho del pulso
+ * en los 7mts es de 40600us, 2 bytes unsigned.
+ * El bug se genera porque en la tkRange, usamos un s16, por lo tanto quedan solo valores de +/- 32768.
+ *
+ *
  * VERSION 5.0.0 @ 2016-08-08:
  * ---------------------------
  * 1- Arreglo es estado de modem apagado ya que contiene bugs.

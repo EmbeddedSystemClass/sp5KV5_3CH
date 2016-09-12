@@ -3,6 +3,11 @@
  *
  *  Created on: 22 de jun. de 2016
  *      Author: pablo
+ *
+ *  Retorno:
+ *   1 : No puede detectar los flancos del pulso
+ *  -1 : La distancia medida es > rango_maximo
+ *
  */
 
 
@@ -82,8 +87,10 @@ static void pv_pollInit(void);
 #define TIMER1_START ( TCCR1B |= ( 1 << CS11 ))	// Prescaler x8: cuento de a uS
 #define TIMER1_STOP ( TCCR1B &= ~( 1 << CS11 ))
 
+static s16 reported_distancia;
+
 //--------------------------------------------------------------------------------------
- void tkRange(void * pvParameters)
+void tkRange(void * pvParameters)
 {
 
 ( void ) pvParameters;
@@ -103,6 +110,8 @@ uint32_t ulNotifiedValue;
 	 Aframe.analogIn[0] = 0;
 	 Aframe.dIn.pulses[0] = 0;
 	 Aframe.dIn.pulses[1] = 0;
+
+	reported_distancia = 0;
 
 	u_rangeSignal(STOP);
 
@@ -361,7 +370,7 @@ static int rgTR_05(void)
 	// Poleo: Mido el nivel
 	distBuffer[RANGE_counters.cCount] = pv_ping();
 
-	vTaskDelay( ( TickType_t)( 1000 / portTICK_RATE_MS ) );
+	vTaskDelay( ( TickType_t)( 1500 / portTICK_RATE_MS ) );
 
 	pv_RANGEprintExitMsg(5);
 	return(rgST_R02);
@@ -382,6 +391,8 @@ s16 distancia = 0;
 u08 i;
 s08 frameValid = TRUE;
 
+	u_rangeSignal(STOP);
+
 	// Vemos si tenemos una medida correcta ( diferencia entre ellas menor a MRANGE_DIFF cms )
 	for (i=1;i<MAX_PING_TRYES;i++) {
 		// Si alguna diferencia es grande, anulo la medida.
@@ -394,19 +405,23 @@ s08 frameValid = TRUE;
 	// Armo el frame.
 	RTC_read(&Aframe.rtc);
 
-	Aframe.status = 0;
 	if ( frameValid ) {
-		// Range valido: // Promedio
+		// Range valido:
+		Aframe.status = 0;
+		// Promedio
 		for (i=0;i<MAX_PING_TRYES;i++) {
 			distancia += distBuffer[i];
 		}
 		 distancia /= MAX_PING_TRYES;
-		 Aframe.analogIn[0] = distancia;
+		 reported_distancia =  distancia;
+
 	} else {
 		// Error en medidas.Uso el range anterior
-		distancia = -1;
 		Aframe.status = 128;
 	}
+
+	// La distancia que guardo para luego reportar es la ultima calculada bien
+	 Aframe.analogIn[0] = reported_distancia;
 
 	// Guardo los datos digitales
 	Aframe.dIn.level[0] = din0;
@@ -431,7 +446,7 @@ s08 frameValid = TRUE;
 	}
 
 	// Imprimo el frame.
-	if ( distancia == -1 ) {
+	if ( Aframe.status != 0 ) {
 		pos = snprintf_P( range_printfBuff, sizeof(range_printfBuff), PSTR("DATA(err){" ));
 	} else {
 		pos = snprintf_P( range_printfBuff, sizeof(range_printfBuff), PSTR("DATA {" ));
@@ -522,6 +537,7 @@ TimeOut_t xTimeOut;
 s08 retS = FALSE;
 
 	vTaskSetTimeOutState( &xTimeOut );
+	TCNT1 = 0;
 
 	while (1) {
 		pin  = ( ( RM_PW_PIN & _BV(RM_PW_BIT) ) >> RM_PW_BIT );
@@ -545,31 +561,31 @@ static s16 pv_ping(void )
 	// Genera un disparo y mide
 
 u32 tickCount;
-s16 distancia = -1;
+s16 distancia;
 
-	u_rangeSignal(RUN);
+	//u_rangeSignal(RUN);
 
 	if ( ! pv_awaitLineHIGH() ) {		// Espero un flanco de bajada
-		snprintf_P( range_printfBuff,sizeof(range_printfBuff),PSTR("RangeMeter ERROR: no detect H1\r\n\0"));
+		snprintf_P( range_printfBuff,sizeof(range_printfBuff),PSTR("RangeMeter ERROR: no detect High L1\r\n\0"));
 		FreeRTOS_write( &pdUART1, range_printfBuff, sizeof(range_printfBuff) );
-		return(1);
+		return(-2);
 	}
 
 	// Espero que baje y lo prendo: comienzo a medir
 	if ( ! pv_awaitLineLOW() ) {
 		snprintf_P( range_printfBuff,sizeof(range_printfBuff),PSTR("RangeMeter ERROR: no detect Low\r\n\0"));
 		FreeRTOS_write( &pdUART1, range_printfBuff, sizeof(range_printfBuff) );
-		return(1);
+		return(-3);
 	}
 
 
 	if ( ! pv_awaitLineHIGH() ) {		// Espero el flanco de subida
-		snprintf_P( range_printfBuff,sizeof(range_printfBuff),PSTR("RangeMeter ERROR: no detect H2\r\n\0"));
+		snprintf_P( range_printfBuff,sizeof(range_printfBuff),PSTR("RangeMeter ERROR: no detect High L2\r\n\0"));
 		FreeRTOS_write( &pdUART1, range_printfBuff, sizeof(range_printfBuff) );
-		return(1);
+		return(-4);
 	}
 
-	u_rangeSignal(STOP);
+	//u_rangeSignal(STOP);
 
 	distancia = (TCNT1 / 58);
 	if ( distancia > systemVars.maxRange ) {
@@ -577,7 +593,7 @@ s16 distancia = -1;
 	}
 
 	tickCount = xTaskGetTickCount();
-	snprintf_P( range_printfBuff,sizeof(range_printfBuff),PSTR(".[%06lu] tkRange::ping:: (%d) Distancia=%d\r\n\0"),tickCount,RANGE_counters.cCount,distancia);
+	snprintf_P( range_printfBuff,sizeof(range_printfBuff),PSTR(".[%06lu] tkRange::ping:: (%d) Distancia=%d TCNT1=%d\r\n\0"),tickCount,RANGE_counters.cCount,distancia,TCNT1);
 	u_debugPrint(D_DATA, range_printfBuff, sizeof(range_printfBuff) );
 
 	return(distancia);
@@ -611,7 +627,15 @@ s08 changed = FALSE;
 //----------------------------------------------------------------------------------------
 static void pv_pollInit(void)
 {
+u08 i;
+
 	RANGE_counters.cCount = MAX_PING_TRYES;
+
+	for ( i = 0; i < MAX_PING_TRYES; i++ ) {
+		distBuffer[i] = 0;
+	}
+
+	u_rangeSignal(RUN);
 }
 //----------------------------------------------------------------------------------------
 

@@ -398,7 +398,7 @@ u08 err;
 	// Indice de la linea
 	pos = snprintf_P( gprs_printfBuff,sizeof(gprs_printfBuff),PSTR("&CTL=%d"), pxFFStatBuffer->RD );
 
-	// Calidad del frame.
+	// Calidad del frame ( por medidas + memoria ).
 	err = Aframe->status + pxFFStatBuffer->errno;
 	pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR("&ST=%d"), err );
 

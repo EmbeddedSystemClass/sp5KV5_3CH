@@ -479,9 +479,16 @@ char *s;
 	s = FreeRTOS_UART_getFifoPtr(&pdUART0);
 	switch (channel) {
 	case 0:
+#ifdef OSE_3CH
 		stringp = strstr(s, "A0=");
+#endif
+
+#ifdef OSE_POZOS
+		stringp = strstr(s, "C0=");
+#endif
 		break;
 	case 1:
+
 		stringp = strstr(s, "A1=");
 		break;
 	case 2:
