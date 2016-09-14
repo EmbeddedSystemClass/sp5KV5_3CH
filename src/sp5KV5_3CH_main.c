@@ -13,6 +13,9 @@
  * Los sensores miden hasta 700cms, y los pulsos son de 58us/cms, por lo tanto el ancho del pulso
  * en los 7mts es de 40600us, 2 bytes unsigned.
  * El bug se genera porque en la tkRange, usamos un s16, por lo tanto quedan solo valores de +/- 32768.
+ * En tkRange::pv_ping elimino el control de maxRange y modifico para pasar la distancia por parametro
+ * y retornar el status de la medida.
+ * En globalStatus reporto todos los errores:
  *
  *
  * VERSION 5.0.0 @ 2016-08-08:
@@ -168,7 +171,11 @@ unsigned int i,j;
 	// de arrancar el FRTOS
 	tkControlInit();
 
-#if defined(OSE_3CH) || defined(UTE_8CH)
+#ifdef OSE_3CH
+	tkAnalogInit();
+#endif
+
+#ifdef UTE_8CH
 	tkAnalogInit();
 #endif
 
@@ -184,7 +191,12 @@ unsigned int i,j;
 	xTaskCreate(tkGprsTx, "GPTX", tkGprsTx_STACK_SIZE, NULL, tkGprsTx_TASK_PRIORITY,  &xHandle_tkGprsTx);
 	xTaskCreate(tkGprsRx, "GPRX", tkGprsRx_STACK_SIZE, NULL, tkGprsRx_TASK_PRIORITY,  &xHandle_tkGprsRx);
 
-#if defined(OSE_3CH) || defined(UTE_8CH)
+#ifdef OSE_3CH
+	xTaskCreate(tkDigitalIn, "DIN", tkDigitalIn_STACK_SIZE, NULL, tkDigitalIn_TASK_PRIORITY,  &xHandle_tkDigitalIn);
+	xTaskCreate(tkAnalogIn, "AIN", tkAIn_STACK_SIZE, NULL, tkAIn_TASK_PRIORITY,  &xHandle_tkAIn);
+#endif
+
+#ifdef UTE_8CH
 	xTaskCreate(tkDigitalIn, "DIN", tkDigitalIn_STACK_SIZE, NULL, tkDigitalIn_TASK_PRIORITY,  &xHandle_tkDigitalIn);
 	xTaskCreate(tkAnalogIn, "AIN", tkAIn_STACK_SIZE, NULL, tkAIn_TASK_PRIORITY,  &xHandle_tkAIn);
 #endif
@@ -203,7 +215,11 @@ unsigned int i,j;
 	systemWdg += WDG_CSG;
 #endif
 
-#if defined(OSE_3CH) || defined(UTE_8CH)
+#ifdef OSE_3CH
+	systemWdg += WDG_AIN + WDG_DIN;
+#endif
+
+#ifdef UTE_8CH
 	systemWdg += WDG_AIN + WDG_DIN;
 #endif
 

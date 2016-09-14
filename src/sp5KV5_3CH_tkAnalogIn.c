@@ -10,7 +10,6 @@
 
 #if defined(OSE_3CH) || defined(UTE_8CH)
 
-
 static char aIn_printfBuff[CHAR256];
 TimerHandle_t pollingTimer;
 
@@ -420,14 +419,12 @@ u08 i;
 #endif
 
 #ifdef UTE_8CH
-
 	for ( i = 0; i < NRO_ANALOG_CHANNELS; i++ ) {
 		retS = ADS7828_read(i, &adcRetValue);
 		rAIn[i] += adcRetValue;
 		snprintf_P( aIn_printfBuff,sizeof(aIn_printfBuff),PSTR("\tch_%02d,adc_%02d,val=%d,r%02d=%.0f\r\n\0"),i,i,adcRetValue,i,rAIn[i]);
 		u_debugPrint(D_DATA, aIn_printfBuff, sizeof(aIn_printfBuff) );
 	}
-
 #endif
 	pv_AINprintExitMsg(6);
 	return(anST_A03);
@@ -446,6 +443,7 @@ static int anTR_07(void)
 
 u32 tickCount;
 double I,M;
+u08 i;
 u16 D;
 u08 channel;
 u16 pos = 0;
@@ -485,13 +483,23 @@ StatBuffer_t pxFFStatBuffer;
 	// Convierto la bateria.
 	rAIn[NRO_ANALOG_CHANNELS] = (15 * rAIn[NRO_ANALOG_CHANNELS]) / 4096;	// Bateria
 
+#ifdef OSE_3CH
 	// DEBUG
 	for ( channel = 0; channel <= NRO_ANALOG_CHANNELS; channel++) {
 		tickCount = xTaskGetTickCount();
 		snprintf_P( aIn_printfBuff,CHAR128,PSTR(".[%06lu] tkAnalogIn::trD06 MagCh[%d]=%.02f\r\n\0"), tickCount, channel, rAIn[channel]);
 		u_debugPrint(D_DATA, aIn_printfBuff, sizeof(aIn_printfBuff) );
 	}
+#endif
 
+#ifdef UTE_8CH
+	// DEBUG
+	for ( channel = 0; channel < NRO_ANALOG_CHANNELS; channel++) {
+		tickCount = xTaskGetTickCount();
+		snprintf_P( aIn_printfBuff,CHAR128,PSTR(".[%06lu] tkAnalogIn::trD06 MagCh[%d]=%.02f\r\n\0"), tickCount, channel, rAIn[channel]);
+		u_debugPrint(D_DATA, aIn_printfBuff, sizeof(aIn_printfBuff) );
+	}
+#endif
 
 	// Armo el frame.
 	RTC_read(&Aframe.rtc);
@@ -499,12 +507,18 @@ StatBuffer_t pxFFStatBuffer;
 	for ( channel = 0; channel < NRO_ANALOG_CHANNELS; channel++) {
 		Aframe.analogIn[channel] = rAIn[channel];
 	}
+
+#ifdef OSE_3CH
 	// Bateria
 	Aframe.batt = rAIn[3];
+#endif
+
 	// Digital
 	u_readDigitalCounters( &Aframe.dIn, TRUE );
-	Aframe.dIn.pulses[0] *=  systemVars.magPP[0];
-	Aframe.dIn.pulses[1] *=  systemVars.magPP[1];
+	// Convierto los pulsos a los valores de la magnitud.
+	for ( i = 0; i < NRO_DIGITAL_CHANNELS; i++ ) {
+		Aframe.dIn.pulses[i] *=  systemVars.magPP[i];
+	}
 
 	// Guardo en BD ?
 	if ( AN_flags.saveFrameInBD ) {
@@ -535,10 +549,13 @@ StatBuffer_t pxFFStatBuffer;
 	for ( channel = 0; channel < NRO_DIGITAL_CHANNELS; channel++) {
 		pos += snprintf_P( &aIn_printfBuff[pos], sizeof(aIn_printfBuff), PSTR("%sP=%.02f,"), systemVars.dChName[channel],Aframe.dIn.pulses[channel] );
 	}
+
+#if defined(OSE_3CH) || defined ( OSE_POZOS)
 	// Bateria
-	pos += snprintf_P( &aIn_printfBuff[pos], ( sizeof(aIn_printfBuff) - pos ), PSTR(",bt=%.02f}\r\n\0"),Aframe.batt );
+	pos += snprintf_P( &aIn_printfBuff[pos], ( sizeof(aIn_printfBuff) - pos ), PSTR("bt=%.02f}\r\n\0"),Aframe.batt );
 	//FreeRTOS_write( &pdUART1, aIn_printfBuff, sizeof(aIn_printfBuff) );
 	u_logPrint (aIn_printfBuff, sizeof(aIn_printfBuff) );
+#endif
 
 #ifdef CONSIGNA
 	// Envio un mensaje a la tarea de la consigna diciendole que estan los datos listos

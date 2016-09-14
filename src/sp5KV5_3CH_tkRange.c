@@ -36,6 +36,8 @@ typedef enum {
 	rg_ev_cCOUNT_NOT_0,
 } t_rangeEventos;
 
+typedef enum { PING_OK = 0, PING_ERR_HIGH_L1, PING_ERR_LOW, PING_ERR_HIGH_L2 } t_pingStatus;
+
 #define rgEVENT_COUNT		6
 
 static s08 rgEventos[rgEVENT_COUNT];
@@ -71,7 +73,12 @@ static u08 din0,din1;
 #define MRANGE_DIFF		5	// Maxima diferencia (en cms) entre medidas consecutivas
 #define MAX_PING_TRYES	3	// Cantidad de poleos.
 
-static s16 distBuffer[MAX_PING_TRYES];
+struct s_distBuffer {
+	u16 distancia;
+	u08 status;
+};
+
+static struct s_distBuffer distBuffer[MAX_PING_TRYES];
 
 // Funciones generales
 void  pv_RANGEtimerCallback( TimerHandle_t pxTimer );
@@ -80,7 +87,7 @@ static void pv_RANGEfsm(void);
 static void pv_RANGEprintExitMsg(u08 code);
 static s08 pv_awaitLineHIGH(void);
 static s08 pv_awaitLineLOW(void);
-static s16 pv_ping(void );
+static u08 pv_ping( u16 *distancia );
 static s08  pv_checkDIN4Change(void);
 static void pv_pollInit(void);
 
@@ -360,6 +367,12 @@ static int rgTR_04(void)
 static int rgTR_05(void)
 {
 
+	// Hago un ping mandando un pulso de ultrasonido.
+	// Obtengo el status del ping y el valor de la medida
+
+u08 pingStatus;
+u16 distancia;
+
 	// Poleo CCOUNT veces para luego promediar.
 	// Espero 1s entre poleos.
 
@@ -368,7 +381,9 @@ static int rgTR_05(void)
 	}
 
 	// Poleo: Mido el nivel
-	distBuffer[RANGE_counters.cCount] = pv_ping();
+	pingStatus = pv_ping(&distancia);
+	distBuffer[RANGE_counters.cCount].distancia = distancia;
+	distBuffer[RANGE_counters.cCount].status = pingStatus;
 
 	vTaskDelay( ( TickType_t)( 1500 / portTICK_RATE_MS ) );
 
@@ -387,37 +402,48 @@ static int rgTR_06(void)
 u16 pos = 0;
 size_t bWrite;
 StatBuffer_t pxFFStatBuffer;
-s16 distancia = 0;
+u16 distancia = 0;
 u08 i;
 s08 frameValid = TRUE;
+u08 globalStatus = 0;
 
 	u_rangeSignal(STOP);
+
+	// Controlo que los status de c/medida sean OK.
+	for (i=0;i<MAX_PING_TRYES;i++) {
+		globalStatus |= ( distBuffer[i].status << ( 2*i ) );
+		if ( distBuffer[i].status != PING_OK ) {
+			frameValid = FALSE;
+		}
+	}
 
 	// Vemos si tenemos una medida correcta ( diferencia entre ellas menor a MRANGE_DIFF cms )
 	for (i=1;i<MAX_PING_TRYES;i++) {
 		// Si alguna diferencia es grande, anulo la medida.
-		if ( abs( distBuffer[i-1] - distBuffer[i] ) >  MRANGE_DIFF ) {
+		if ( abs( distBuffer[i-1].distancia - distBuffer[i].distancia ) >  MRANGE_DIFF ) {
 			frameValid = FALSE;
+			globalStatus |= 128;
 			break;
 		}
+	}
+
+	// Promedio
+	for (i=0;i<MAX_PING_TRYES;i++) {
+		distancia += distBuffer[i].distancia;
+	}
+	distancia /= MAX_PING_TRYES;
+	//
+	// Controlo el MAXRANGE.
+	if ( distancia > systemVars. maxRange ) {
+		distancia = systemVars. maxRange;
 	}
 
 	// Armo el frame.
 	RTC_read(&Aframe.rtc);
 
+	Aframe.status = globalStatus;
 	if ( frameValid ) {
-		// Range valido:
-		Aframe.status = 0;
-		// Promedio
-		for (i=0;i<MAX_PING_TRYES;i++) {
-			distancia += distBuffer[i];
-		}
-		 distancia /= MAX_PING_TRYES;
-		 reported_distancia =  distancia;
-
-	} else {
-		// Error en medidas.Uso el range anterior
-		Aframe.status = 128;
+		reported_distancia =  distancia;
 	}
 
 	// La distancia que guardo para luego reportar es la ultima calculada bien
@@ -455,6 +481,10 @@ s08 frameValid = TRUE;
 	// timeStamp.
 	pos += snprintf_P( &range_printfBuff[pos], ( sizeof(range_printfBuff) - pos ),PSTR( "%04d%02d%02d,"),Aframe.rtc.year,Aframe.rtc.month,Aframe.rtc.day );
 	pos += snprintf_P( &range_printfBuff[pos], ( sizeof(range_printfBuff) - pos ), PSTR("%02d%02d%02d,"),Aframe.rtc.hour,Aframe.rtc.min, Aframe.rtc.sec );
+
+	// Calidad del frame ( por medidas ).
+	pos += snprintf_P( &range_printfBuff[pos],sizeof(range_printfBuff),PSTR("ST=%d,"), Aframe.status );
+
 	// Valores
 	pos += snprintf_P( &range_printfBuff[pos], ( sizeof(range_printfBuff) - pos ), PSTR("%s=%.0f,"),systemVars.aChName[0],Aframe.analogIn[0l] );
 	// Valores digitales
@@ -556,47 +586,50 @@ s08 retS = FALSE;
 	return(retS);
 }
 //----------------------------------------------------------------------------------------
-static s16 pv_ping(void )
+static u08 pv_ping( u16 *distancia )
 {
 	// Genera un disparo y mide
 
 u32 tickCount;
-s16 distancia;
+u08 pingStatus = PING_OK;
 
 	//u_rangeSignal(RUN);
 
 	if ( ! pv_awaitLineHIGH() ) {		// Espero un flanco de bajada
 		snprintf_P( range_printfBuff,sizeof(range_printfBuff),PSTR("RangeMeter ERROR: no detect High L1\r\n\0"));
 		FreeRTOS_write( &pdUART1, range_printfBuff, sizeof(range_printfBuff) );
-		return(-2);
+		*distancia = 0;
+		pingStatus = PING_ERR_HIGH_L1;
+		return(pingStatus);
 	}
 
 	// Espero que baje y lo prendo: comienzo a medir
 	if ( ! pv_awaitLineLOW() ) {
 		snprintf_P( range_printfBuff,sizeof(range_printfBuff),PSTR("RangeMeter ERROR: no detect Low\r\n\0"));
 		FreeRTOS_write( &pdUART1, range_printfBuff, sizeof(range_printfBuff) );
-		return(-3);
+		*distancia = 0;
+		pingStatus = PING_ERR_LOW;
+		return(pingStatus);
 	}
 
 
 	if ( ! pv_awaitLineHIGH() ) {		// Espero el flanco de subida
 		snprintf_P( range_printfBuff,sizeof(range_printfBuff),PSTR("RangeMeter ERROR: no detect High L2\r\n\0"));
 		FreeRTOS_write( &pdUART1, range_printfBuff, sizeof(range_printfBuff) );
-		return(-4);
+		*distancia = 0;
+		pingStatus = PING_ERR_HIGH_L2;
+		return(pingStatus);
 	}
 
 	//u_rangeSignal(STOP);
 
-	distancia = (TCNT1 / 58);
-	if ( distancia > systemVars.maxRange ) {
-		distancia = -1;
-	}
+	*distancia = (TCNT1 / 58);
 
 	tickCount = xTaskGetTickCount();
-	snprintf_P( range_printfBuff,sizeof(range_printfBuff),PSTR(".[%06lu] tkRange::ping:: (%d) Distancia=%d TCNT1=%d\r\n\0"),tickCount,RANGE_counters.cCount,distancia,TCNT1);
+	snprintf_P( range_printfBuff,sizeof(range_printfBuff),PSTR(".[%06lu] tkRange::ping:: (%d) Distancia=%d TCNT1=%u\r\n\0"),tickCount,RANGE_counters.cCount,*distancia,TCNT1);
 	u_debugPrint(D_DATA, range_printfBuff, sizeof(range_printfBuff) );
 
-	return(distancia);
+	return(pingStatus);
 }
 //----------------------------------------------------------------------------------------
 static s08 pv_checkDIN4Change(void)
@@ -632,7 +665,7 @@ u08 i;
 	RANGE_counters.cCount = MAX_PING_TRYES;
 
 	for ( i = 0; i < MAX_PING_TRYES; i++ ) {
-		distBuffer[i] = 0;
+		distBuffer[i].distancia = 0;
 	}
 
 	u_rangeSignal(RUN);

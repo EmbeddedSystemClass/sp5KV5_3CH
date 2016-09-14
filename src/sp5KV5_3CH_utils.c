@@ -173,6 +173,7 @@ int i;
 	systemVars.aChName[0][PARAMNAME_LENGTH - 1] = '\0';
 	systemVars.aChName[1][PARAMNAME_LENGTH - 1] = '\0';
 	systemVars.aChName[2][PARAMNAME_LENGTH - 1] = '\0';
+
 	systemVars.dChName[0][PARAMNAME_LENGTH - 1] = '\0';
 	systemVars.dChName[1][PARAMNAME_LENGTH - 1] = '\0';
 
@@ -185,6 +186,13 @@ int i;
 	// Canales digitales
 	systemVars.magPP[0] = 1;
 	systemVars.magPP[1] = 1;
+#endif
+
+#ifdef UTE_8CH
+	systemVars.pwrMode = PWR_CONTINUO;
+	systemVars.tiltEnabled = FALSE;
+
+	systemVars.timerPoll = 60;			// Poleo c/1 minutos
 #endif
 
 	return(retS);
@@ -272,7 +280,7 @@ u08 channel;
 
 	systemVars.initByte = 0x49;
 
-#if defined(OSE_3CH) || defined(UTE_8CH)
+#ifdef OSE_3CH
 	strncpy_P(systemVars.dlgId, PSTR("DEF000\0"),DLGID_LENGTH);
 #endif
 

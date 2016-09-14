@@ -100,6 +100,10 @@ s08 loadParamStatus = FALSE;
 	pos += snprintf_P( &ctl_printfBuff[pos],sizeof(ctl_printfBuff),PSTR("+POZOS\0"));
 #endif
 
+#ifdef UTE_8CH
+	pos += snprintf_P( &ctl_printfBuff[pos],sizeof(ctl_printfBuff),PSTR("+8AIN\0"));
+#endif
+
 	pos += snprintf_P( &ctl_printfBuff[pos],sizeof(ctl_printfBuff),PSTR("\r\n"));
 	FreeRTOS_write( &pdUART1, ctl_printfBuff, sizeof(ctl_printfBuff) );
 
@@ -213,7 +217,11 @@ static u08 l_secCounter = 3;
 		systemWdg += WDG_CSG;
 #endif
 
-#if defined(OSE_3CH) || defined(UTE_8CH)
+#ifdef OSE_3CH
+	systemWdg += WDG_AIN + WDG_DIN;
+#endif
+
+#ifdef UTE_8CH
 	systemWdg += WDG_AIN + WDG_DIN;
 #endif
 

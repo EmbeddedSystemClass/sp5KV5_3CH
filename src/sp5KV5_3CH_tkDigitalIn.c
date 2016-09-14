@@ -20,7 +20,8 @@
 
 #include "sp5KV5_3CH.h"
 
-#ifdef OSE_3CH
+#if defined(OSE_3CH) || defined(UTE_8CH)
+
 static void pv_clearQ(void);
 static void pv_pollQ(void);
 
@@ -32,6 +33,7 @@ void tkDigitalIn(void * pvParameters)
 {
 
 ( void ) pvParameters;
+u08 i = 0;
 
 	while ( !startTask )
 		vTaskDelay( ( TickType_t)( 100 / portTICK_RATE_MS ) );
@@ -41,10 +43,10 @@ void tkDigitalIn(void * pvParameters)
 
 	// Inicializo los latches borrandolos
 	pv_clearQ();
-	digIn.level[0] = 0;
-	digIn.level[1] = 0;
-	digIn.pulses[0] = 0;
-	digIn.pulses[1] = 0;
+	for ( i = 0; i < NRO_DIGITAL_CHANNELS; i++) {
+		digIn.level[i] = 0;
+		digIn.pulses[i] = 0;
+	}
 
 	for( ;; )
 	{
@@ -66,13 +68,14 @@ void u_readDigitalCounters( dinData_t *dIn , s08 resetCounters )
 {
 	// copio los valores de los contadores en la estructura dIn.
 	// Si se solicita, luego se ponen a 0.
+u08 i = 0;
 
 	memcpy( dIn, &digIn, sizeof(dinData_t)) ;
 	if ( resetCounters == TRUE ) {
-		digIn.level[0] = 0;
-		digIn.level[1] = 0;
-		digIn.pulses[0] = 0;
-		digIn.pulses[1] = 0;
+		for ( i = 0; i < NRO_DIGITAL_CHANNELS; i++) {
+			digIn.level[i] = 0;
+			digIn.pulses[i] = 0;
+		}
 	}
 }
 /*------------------------------------------------------------------------------------*/
