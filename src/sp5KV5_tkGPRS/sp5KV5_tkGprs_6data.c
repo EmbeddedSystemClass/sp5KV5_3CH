@@ -406,38 +406,38 @@ u08 err;
 	pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR("&LINE=") );
 	// Fecha y hora
 	pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR( "%04d%02d%02d,"),Aframe->rtc.year,Aframe->rtc.month,Aframe->rtc.day );
-	pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ), PSTR("%02d%02d%02d,"),Aframe->rtc.hour,Aframe->rtc.min, Aframe->rtc.sec );
+	pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ), PSTR("%02d%02d%02d"),Aframe->rtc.hour,Aframe->rtc.min, Aframe->rtc.sec );
 
 #ifdef UTE_8CH
 	// Valores analogicos
 	for ( channel = 0; channel < NRO_ANALOG_CHANNELS; channel++) {
-		pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR("%s=%.2f,"),systemVars.aChName[channel],Aframe->analogIn[channel] );
+		pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR(",%s=%.2f"),systemVars.aChName[channel],Aframe->analogIn[channel] );
 	}
 	// Datos digitales
 	for ( channel = 0; channel < NRO_DIGITAL_CHANNELS; channel++ ) {
-		pos += snprintf_P( &gprs_printfBuff[pos], ( sizeof(gprs_printfBuff) - pos ), PSTR("%sP=%.02f,%sL=%d,"), systemVars.dChName[channel],Aframe->dIn.pulses[channel],systemVars.dChName[channel],Aframe->dIn.level[channel] );
+		pos += snprintf_P( &gprs_printfBuff[pos], ( sizeof(gprs_printfBuff) - pos ), PSTR(",%sP=%.02f,%sL=%d"), systemVars.dChName[channel],Aframe->dIn.pulses[channel],systemVars.dChName[channel],Aframe->dIn.level[channel] );
 	}
 #endif
 
 #ifdef OSE_3CH
 	// Valores analogicos
 	for ( channel = 0; channel < NRO_ANALOG_CHANNELS; channel++) {
-		pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR("%s=%.2f,"),systemVars.aChName[channel],Aframe->analogIn[channel] );
+		pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR(",%s=%.2f,"),systemVars.aChName[channel],Aframe->analogIn[channel] );
 	}
 	// Datos digitales
 	for ( channel = 0; channel < NRO_DIGITAL_CHANNELS; channel++ ) {
-		pos += snprintf_P( &gprs_printfBuff[pos], ( sizeof(gprs_printfBuff) - pos ), PSTR("%sP=%.02f,"), systemVars.dChName[channel],Aframe->dIn.pulses[channel] );
+		pos += snprintf_P( &gprs_printfBuff[pos], ( sizeof(gprs_printfBuff) - pos ), PSTR(",%sP=%.02f"), systemVars.dChName[channel],Aframe->dIn.pulses[channel] );
 	}
 	// Bateria
-	pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ), PSTR("bt=%.2f"),Aframe->batt );
+	pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ), PSTR(",bt=%.2f"),Aframe->batt );
 #endif
 
 #ifdef OSE_POZOS
 	// Configuracion de canales analogicos
-	pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR("%s=%.0f,"),systemVars.aChName[0],Aframe->analogIn[0] );
+	pos += snprintf_P( &gprs_printfBuff[pos],( sizeof(gprs_printfBuff) - pos ),PSTR(",%s=%.0f"),systemVars.aChName[0],Aframe->analogIn[0] );
 	// Datos digitales
-	pos += snprintf_P( &gprs_printfBuff[pos], ( sizeof(gprs_printfBuff) - pos ), PSTR("%s=%d,"), systemVars.dChName[0l],Aframe->dIn.level[0] );
-	pos += snprintf_P( &gprs_printfBuff[pos], ( sizeof(gprs_printfBuff) - pos ), PSTR("%s=%d"), systemVars.dChName[1],Aframe->dIn.level[1] );
+	pos += snprintf_P( &gprs_printfBuff[pos], ( sizeof(gprs_printfBuff) - pos ), PSTR(",%s=%d"), systemVars.dChName[0l],Aframe->dIn.level[0] );
+	pos += snprintf_P( &gprs_printfBuff[pos], ( sizeof(gprs_printfBuff) - pos ), PSTR(",%s=%d"), systemVars.dChName[1],Aframe->dIn.level[1] );
 #endif
 
 	return(pos);

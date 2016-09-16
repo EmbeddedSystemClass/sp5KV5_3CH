@@ -238,12 +238,17 @@ static void pv_initMPU(void)
 {
 	// Son acciones que se hacen antes de arrancar el RTOS
 
-#ifdef CONSIGNA
+
 	// Configuracion de pines:
-	// Los pines del micro que resetean los latches de caudal son salidas.
-	sbi(Q_DDR, Q0_CTL_PIN);
-	sbi(Q_DDR, Q1_CTL_PIN);
-#endif
+	// El pin de control de la terminal es entrada
+	cbi(TERMSW_DDR, TERMSW_BIT);
+	// El pin de DCD es entrada
+	cbi(DCD_DDR, DCD_BIT);
+	// Leds
+	sbi(LED_KA_DDR, LED_KA_BIT);		// El pin del led de KA ( PD6 ) es una salida.
+	sbi(LED_MODEM_DDR, LED_MODEM_BIT);	// El pin del led de KA ( PD6 ) es una salida.
+	// inicialmente los led quedan en 0
+
 
 #ifdef OSE_POZOS
 	// RANGE METER
@@ -254,18 +259,40 @@ static void pv_initMPU(void)
 	sbi(RM_RUN_DDR, RM_RUN_BIT);	// RUN es salida
 #endif
 
-	// El pin de control de la terminal es entrada
-	cbi(TERMSW_DDR, TERMSW_BIT);
-
-	// El pin de DCD es entrada
-	cbi(DCD_DDR, DCD_BIT);
-
-	// Leds
-	sbi(LED_KA_DDR, LED_KA_BIT);		// El pin del led de KA ( PD6 ) es una salida.
-	sbi(LED_MODEM_DDR, LED_MODEM_BIT);	// El pin del led de KA ( PD6 ) es una salida.
-	// inicialmente los led quedan en 0
+#if defined(OSE_3CH) || defined(OSE_POZOS)
 	sbi(LED_KA_PORT, LED_KA_BIT);
 	sbi(LED_MODEM_PORT, LED_MODEM_BIT);
+
+	// Los pines del micro que resetean los latches de caudal son salidas.
+	sbi(Q_DDR, Q0_CTL_PIN);
+	sbi(Q_DDR, Q1_CTL_PIN);
+#endif
+
+#ifdef UTE_8CH
+	// Leds de placa superior
+	cbi(LED_KA_PORT, LED_KA_BIT);
+	cbi(LED_MODEM_PORT, LED_MODEM_BIT);
+	//
+	// Pines de entradas digitales.
+	// Entradas de pulso(LATCHs)
+	cbi(D0_IN_DDR, D0_IN);
+	cbi(D1_IN_DDR, D1_IN);
+	cbi(D2_IN_DDR, D2_IN);
+	cbi(D3_IN_DDR, D3_IN);
+	//
+	// Entradas de nivel logico
+	cbi(D0_LV_DDR, D0_LV);
+	cbi(D1_LV_DDR, D1_LV);
+	cbi(D2_LV_DDR, D2_LV);
+	cbi(D3_LV_DDR, D3_LV);
+	//
+	// Salidas para resetear los latches
+	sbi(D0_CLR_DDR, D0_CLR);
+	sbi(D1_CLR_DDR, D1_CLR);
+	sbi(D2_CLR_DDR, D2_CLR);
+	sbi(D3_CLR_DDR, D3_CLR);
+
+#endif
 
 	// Configuro el modo de Sleep.
 	set_sleep_mode(SLEEP_MODE_PWR_SAVE);

@@ -55,7 +55,7 @@
 // DEFINICION DEL TIPO DE SISTEMA
 //----------------------------------------------------------------------------
 #define SP5K_REV "5.0.1"
-#define SP5K_DATE "@ 20160914"
+#define SP5K_DATE "@ 20160916"
 
 #define SP5K_MODELO "sp5KV3 HW:avr1284P R5.0"
 #define SP5K_VERSION "FW:FRTOS8"
@@ -67,10 +67,10 @@
 //----------------------------------------------------------------------------
 // PERSONALIZACION DEL FIRMWARE
 
-//#define UTE_8CH
+#define UTE_8CH
 //#define CONSIGNA
 //#define OSE_3CH
-#define OSE_POZOS
+//#define OSE_POZOS
 
 //----------------------------------------------------------------------------
 // TASKS
@@ -150,7 +150,7 @@ typedef enum { CONSIGNA_OFF = 0, CONSIGNA_DOBLE, CONSIGNA_CONTINUA, CONSIGNA_NON
 
 #ifdef UTE_8CH
 #define NRO_ANALOG_CHANNELS		8
-#define NRO_DIGITAL_CHANNELS	4
+#define NRO_DIGITAL_CHANNELS	2
 #endif
 
 #ifdef OSE_3CH
@@ -166,6 +166,7 @@ typedef enum { CONSIGNA_OFF = 0, CONSIGNA_DOBLE, CONSIGNA_CONTINUA, CONSIGNA_NON
 typedef struct {
 	u08 level[NRO_DIGITAL_CHANNELS];		// 2
 	double pulses[NRO_DIGITAL_CHANNELS];	// 8
+	u16 secsUp[NRO_DIGITAL_CHANNELS];		// 4
 } dinData_t;
 
 typedef struct {
@@ -303,6 +304,21 @@ void u_configDobleConsignas( char *s_horaConsDia,char *s_horaConsNoc,char *chVA,
 void fuzzy_test(void);
 //------------------------------------------------------------------------------------
 // LED
+#ifdef UTE_8CH
+#define LED_KA_PORT		PORTD
+#define LED_KA_PIN		PIND
+#define LED_KA_BIT		7
+#define LED_KA_DDR		DDRD
+#define LED_KA_MASK		0x80
+
+#define LED_MODEM_PORT		PORTD
+#define LED_MODEM_PIN		PIND
+#define LED_MODEM_BIT		6
+#define LED_MODEM_DDR		DDRD
+#define LED_MODEM_MASK		0x40
+#endif
+
+#if defined(OSE_POZOS) || defined (OSE_3CH)
 #define LED_KA_PORT		PORTD
 #define LED_KA_PIN		PIND
 #define LED_KA_BIT		6
@@ -314,13 +330,70 @@ void fuzzy_test(void);
 #define LED_MODEM_BIT		3
 #define LED_MODEM_DDR		DDRC
 #define LED_MODEM_MASK		0x04
+#endif
 
 //------------------------------------------------------------------------------------
 // Q PINES
+#if defined(OSE_POZOS) || defined (OSE_3CH)
 #define Q_PORT		PORTA
 #define Q_DDR		DDRA
 #define Q0_CTL_PIN	2
 #define Q1_CTL_PIN	3
+#endif
+
+#ifdef UTE_8CH
+#define D0_IN_PORT		PORTB
+#define D0_IN_DDR		DDRB
+#define D0_IN_PIN		PINB
+#define D0_IN			4
+#define D0_CLR_PORT		PORTB
+#define D0_CLR_DDR		DDRB
+#define D0_CLR_PIN		PINB
+#define D0_CLR			3
+#define D0_LV_PORT		PORTC
+#define D0_LV_DDR		DDRC
+#define D0_LV_PIN		PINC
+#define D0_LV			3
+
+#define D1_IN_PORT		PORTB
+#define D1_IN_DDR		DDRB
+#define D1_IN_PIN		PINB
+#define D1_IN			1
+#define D1_CLR_PORT		PORTB
+#define D1_CLR_DDR		DDRB
+#define D1_CLR_PIN		PINB
+#define D1_CLR			2
+#define D1_LV_PORT		PORTA
+#define D1_LV_DDR		DDRA
+#define D1_LV_PIN		PINA
+#define D1_LV			3
+
+#define D2_IN_PORT		PORTB
+#define D2_IN_DDR		DDRB
+#define D2_IN_PIN		PINB
+#define D2_IN			0
+#define D2_CLR_PORT		PORTA
+#define D2_CLR_DDR		DDRA
+#define D2_CLR_PIN		PINA
+#define D2_CLR			0
+#define D2_LV_PORT		PORTC
+#define D2_LV_DDR		DDRC
+#define D2_LV_PIN		PINC
+#define D2_LV			5
+
+#define D3_IN_PORT		PORTA
+#define D3_IN_DDR		DDRA
+#define D3_IN_PIN		PINA
+#define D3_IN			2
+#define D3_CLR_PORT		PORTA
+#define D3_CLR_DDR		DDRA
+#define D3_CLR_PIN		PINA
+#define D3_CLR			1
+#define D3_LV_PORT		PORTC
+#define D3_LV_DDR		DDRC
+#define D3_LV_PIN		PINC
+#define D3_LV			4
+#endif
 
 //------------------------------------------------------------------------------------
 // PANIC CODES

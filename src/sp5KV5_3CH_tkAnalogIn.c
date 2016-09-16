@@ -426,6 +426,7 @@ u08 i;
 		u_debugPrint(D_DATA, aIn_printfBuff, sizeof(aIn_printfBuff) );
 	}
 #endif
+
 	pv_AINprintExitMsg(6);
 	return(anST_A03);
 
@@ -480,10 +481,11 @@ StatBuffer_t pxFFStatBuffer;
 		}
 	}
 
+#ifdef OSE_3CH
+
 	// Convierto la bateria.
 	rAIn[NRO_ANALOG_CHANNELS] = (15 * rAIn[NRO_ANALOG_CHANNELS]) / 4096;	// Bateria
 
-#ifdef OSE_3CH
 	// DEBUG
 	for ( channel = 0; channel <= NRO_ANALOG_CHANNELS; channel++) {
 		tickCount = xTaskGetTickCount();
@@ -503,6 +505,7 @@ StatBuffer_t pxFFStatBuffer;
 
 	// Armo el frame.
 	RTC_read(&Aframe.rtc);
+
 	// Analogico
 	for ( channel = 0; channel < NRO_ANALOG_CHANNELS; channel++) {
 		Aframe.analogIn[channel] = rAIn[channel];
@@ -536,26 +539,45 @@ StatBuffer_t pxFFStatBuffer;
 		u_debugPrint(D_BASIC, aIn_printfBuff, sizeof(aIn_printfBuff) );
 	}
 
+#ifdef UTE_8CH
 	// Imprimo el frame.
 	pos = snprintf_P( aIn_printfBuff, sizeof(aIn_printfBuff), PSTR("FRAME::{" ));
 	// timeStamp.
 	pos += snprintf_P( &aIn_printfBuff[pos], ( sizeof(aIn_printfBuff) - pos ),PSTR( "%04d%02d%02d,"),Aframe.rtc.year,Aframe.rtc.month,Aframe.rtc.day );
-	pos += snprintf_P( &aIn_printfBuff[pos], ( sizeof(aIn_printfBuff) - pos ), PSTR("%02d%02d%02d,"),Aframe.rtc.hour,Aframe.rtc.min, Aframe.rtc.sec );
+	pos += snprintf_P( &aIn_printfBuff[pos], ( sizeof(aIn_printfBuff) - pos ), PSTR("%02d%02d%02d"),Aframe.rtc.hour,Aframe.rtc.min, Aframe.rtc.sec );
 	// Valores analogicos
 	for ( channel = 0; channel < NRO_ANALOG_CHANNELS; channel++) {
-		pos += snprintf_P( &aIn_printfBuff[pos], ( sizeof(aIn_printfBuff) - pos ), PSTR("%s=%.02f,"),systemVars.aChName[channel],Aframe.analogIn[channel] );
+		pos += snprintf_P( &aIn_printfBuff[pos], ( sizeof(aIn_printfBuff) - pos ), PSTR(",%s=%.02f"),systemVars.aChName[channel],Aframe.analogIn[channel] );
 	}
 	// Valores digitales
 	for ( channel = 0; channel < NRO_DIGITAL_CHANNELS; channel++) {
-		pos += snprintf_P( &aIn_printfBuff[pos], sizeof(aIn_printfBuff), PSTR("%sP=%.02f,"), systemVars.dChName[channel],Aframe.dIn.pulses[channel] );
+		pos += snprintf_P( &aIn_printfBuff[pos], ( sizeof(aIn_printfBuff) - pos ), PSTR(",%s{P=%.02f,L=%d,T=%d}"), systemVars.dChName[channel],Aframe.dIn.pulses[channel],Aframe.dIn.level[channel],Aframe.dIn.secsUp[channel] );
 	}
 
-#if defined(OSE_3CH) || defined ( OSE_POZOS)
-	// Bateria
-	pos += snprintf_P( &aIn_printfBuff[pos], ( sizeof(aIn_printfBuff) - pos ), PSTR("bt=%.02f}\r\n\0"),Aframe.batt );
-	//FreeRTOS_write( &pdUART1, aIn_printfBuff, sizeof(aIn_printfBuff) );
+	pos += snprintf_P( &aIn_printfBuff[pos], ( sizeof(aIn_printfBuff) - pos ), PSTR("}\r\n\0") );
 	u_logPrint (aIn_printfBuff, sizeof(aIn_printfBuff) );
+
 #endif
+
+#ifdef OSE_3CH
+	// Imprimo el frame.
+	pos = snprintf_P( aIn_printfBuff, sizeof(aIn_printfBuff), PSTR("FRAME::{" ));
+	// timeStamp.
+	pos += snprintf_P( &aIn_printfBuff[pos], ( sizeof(aIn_printfBuff) - pos ),PSTR( "%04d%02d%02d,"),Aframe.rtc.year,Aframe.rtc.month,Aframe.rtc.day );
+	pos += snprintf_P( &aIn_printfBuff[pos], ( sizeof(aIn_printfBuff) - pos ), PSTR("%02d%02d%02d"),Aframe.rtc.hour,Aframe.rtc.min, Aframe.rtc.sec );
+	// Valores analogicos
+	for ( channel = 0; channel < NRO_ANALOG_CHANNELS; channel++) {
+		pos += snprintf_P( &aIn_printfBuff[pos], ( sizeof(aIn_printfBuff) - pos ), PSTR(",%s=%.02f"),systemVars.aChName[channel],Aframe.analogIn[channel] );
+	}
+	// Valores digitales
+	for ( channel = 0; channel < NRO_DIGITAL_CHANNELS; channel++) {
+		pos += snprintf_P( &aIn_printfBuff[pos], ( sizeof(aIn_printfBuff) - pos ), PSTR(",%sP=%.02f"), systemVars.dChName[channel],Aframe.dIn.pulses[channel] );
+	}
+	// Bateria
+	pos += snprintf_P( &aIn_printfBuff[pos], ( sizeof(aIn_printfBuff) - pos ), PSTR(",bt=%.02f}\r\n\0"),Aframe.batt );
+	FreeRTOS_write( &pdUART1, aIn_printfBuff, sizeof(aIn_printfBuff) );
+#endif
+
 
 #ifdef CONSIGNA
 	// Envio un mensaje a la tarea de la consigna diciendole que estan los datos listos

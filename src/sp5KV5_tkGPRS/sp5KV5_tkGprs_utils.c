@@ -477,18 +477,13 @@ char *s;
 
 	tickCount = xTaskGetTickCount();
 	s = FreeRTOS_UART_getFifoPtr(&pdUART0);
+
+#ifdef OSE_3CH
 	switch (channel) {
 	case 0:
-#ifdef OSE_3CH
 		stringp = strstr(s, "A0=");
-#endif
-
-#ifdef OSE_POZOS
-		stringp = strstr(s, "C0=");
-#endif
 		break;
 	case 1:
-
 		stringp = strstr(s, "A1=");
 		break;
 	case 2:
@@ -499,6 +494,51 @@ char *s;
 		goto quit;
 		break;
 	}
+#endif
+
+#ifdef OSE_POZOS
+	switch (channel) {
+	case 0:
+		stringp = strstr(s, "C0=");
+		break;
+	default:
+		ret = 0;
+		goto quit;
+		break;
+#endif
+
+#ifdef UTE_8CH
+	switch (channel) {
+	case 0:
+		stringp = strstr(s, "A0=");
+		break;
+	case 1:
+		stringp = strstr(s, "A1=");
+		break;
+	case 2:
+		stringp = strstr(s, "A2=");
+		break;
+	case 3:
+		stringp = strstr(s, "A3=");
+		break;
+	case 4:
+		stringp = strstr(s, "A4=");
+		break;
+	case 5:
+		stringp = strstr(s, "A5=");
+		break;
+	case 6:
+		stringp = strstr(s, "A6=");
+		break;
+	case 7:
+		stringp = strstr(s, "A7=");
+		break;
+	default:
+		ret = 0;
+		goto quit;
+		break;
+	}
+#endif
 
 	if ( stringp == NULL ) {
 		ret = 0;

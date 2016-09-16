@@ -338,8 +338,6 @@ u08 saveFlag = 0;
 	// Canales digitales
 	saveFlag += g_GPRSprocessDch(0);
 	saveFlag += g_GPRSprocessDch(1);
-	saveFlag += g_GPRSprocessDch(2);
-	saveFlag += g_GPRSprocessDch(3);
 #endif
 
 #ifdef OSE_POZOS

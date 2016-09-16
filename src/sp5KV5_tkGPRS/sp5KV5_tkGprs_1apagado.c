@@ -234,26 +234,43 @@ static int gTR_A07(void)
 //------------------------------------------------------------------------------------
 static void pv_configCTimer(u08 modo)
 {
+	// Configura el tiempo que el modem va a permanecer apagado.
+
+u16 timer;
+
 	switch(modo) {
+
 	case TINIT_INIT: // INIT
+		// Cuando arranca ( unica vez ).
 		GPRS_stateVars.counters.awaitSecs = 15;
 		break;
+
 	case TINIT_MSGRELOAD:	// MSG RELOAD
-		if ( (systemVars.wrkMode == WK_SERVICE ) || (systemVars.wrkMode == WK_MONITOR_FRAME ))  {
-			// Pasamos a modo service: quedo apagado indefinidamente
-			GPRS_stateVars.counters.awaitSecs = 0xFFFF;
-		} else {
+		switch ( systemVars.wrkMode ) {
+		case WK_IDLE:
+			// No se usa
+			break;
+		case WK_NORMAL:
 			// Regargo la configuracion y arranco en 15s
 			GPRS_stateVars.counters.awaitSecs = 15;
-		}
-		break;
-	case TINIT_NORMAL:		// NORMAL( continuo o discreto )
-		// Situacion al ingresar al estado.
-		switch (systemVars.wrkMode ) {
+			break;
 		case WK_SERVICE:
-			// En modo service me quedo en forma indefinida
+			// Pasamos a modo service: quedo apagado indefinidamente
 			GPRS_stateVars.counters.awaitSecs = 0xFFFF;
 			break;
+		case WK_MONITOR_FRAME:
+			// quedo apagado indefinidamente
+			GPRS_stateVars.counters.awaitSecs = 0xFFFF;
+			break;
+		case WK_MONITOR_SQE:
+			// El modem debe estar prendido: regargo la configuracion y arranco en 15s
+			GPRS_stateVars.counters.awaitSecs = 15;
+			break;
+		}
+		break;
+
+	case TINIT_NORMAL:		// NORMAL( continuo o discreto )
+		switch ( systemVars.pwrMode ) {
 		case PWR_CONTINUO:
 			GPRS_stateVars.counters.awaitSecs = 60;
 			break;
@@ -262,14 +279,19 @@ static void pv_configCTimer(u08 modo)
 			break;
 		}
 		break;
+
 	case TINIT_PWRSAVE:		// PWR SAVE
 		GPRS_stateVars.counters.awaitSecs = 600;
 		break;
 	}
 
+	timer = (u16)(GPRS_stateVars.counters.awaitSecs);
 	tickCount = xTaskGetTickCount();
-	snprintf_P( gprs_printfBuff,sizeof(gprs_printfBuff),PSTR(".[%06lu] Modem off: Await %lu secs.\r\n\0"),tickCount,GPRS_stateVars.counters.awaitSecs);
+	snprintf_P( gprs_printfBuff,sizeof(gprs_printfBuff),PSTR(".[%06lu] Modem off: Await %u secs.\r\n\0"),tickCount,timer);
 	u_debugPrint(D_GPRS, gprs_printfBuff, sizeof(gprs_printfBuff) );
+
+//	snprintf_P( gprs_printfBuff,sizeof(gprs_printfBuff),PSTR("DEBUG: modo=%d,wrkMode=%d.\r\n\0"),modo, systemVars.wrkMode);
+//	u_debugPrint(D_GPRS, gprs_printfBuff, sizeof(gprs_printfBuff) );
 
 }
 //------------------------------------------------------------------------------------

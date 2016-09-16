@@ -7,7 +7,7 @@
 
 #include "sp5KV5_3CH.h"
 
-static char cmd_printfBuff[CHAR128];
+static char cmd_printfBuff[CHAR256];
 char *argv[16];
 
 //----------------------------------------------------------------------------------------
@@ -134,6 +134,13 @@ static void cmdHelpFunction(void)
 	FreeRTOS_write( &pdUART1, cmd_printfBuff, sizeof(cmd_printfBuff) );
 #endif
 
+#ifdef UTE_8CH
+	snprintf_P( cmd_printfBuff,sizeof(cmd_printfBuff),PSTR( "  wrkmode [service | monitor {sqe|frame}]\r\n\0"));
+	FreeRTOS_write( &pdUART1, cmd_printfBuff, sizeof(cmd_printfBuff) );
+	snprintf_P( cmd_printfBuff,sizeof(cmd_printfBuff),PSTR("  timerpoll, dlgid, gsmband\r\n\0"));
+	FreeRTOS_write( &pdUART1, cmd_printfBuff, sizeof(cmd_printfBuff) );
+#endif
+
 #ifdef OSE_3CH
 	snprintf_P( cmd_printfBuff,sizeof(cmd_printfBuff),PSTR( "  wrkmode [service | monitor {sqe|frame}], pwrmode [continuo|discreto] \r\n\0"));
 	FreeRTOS_write( &pdUART1, cmd_printfBuff, sizeof(cmd_printfBuff) );
@@ -165,7 +172,7 @@ static void cmdHelpFunction(void)
 #ifdef UTE_8CH
 	snprintf_P( cmd_printfBuff,sizeof(cmd_printfBuff),PSTR("  A{0..8} aname imin imax mmin mmax\r\n\0"));
 	FreeRTOS_write( &pdUART1, cmd_printfBuff, sizeof(cmd_printfBuff) );
-	snprintf_P( cmd_printfBuff,sizeof(cmd_printfBuff),PSTR("  D{0..3} dname magp\r\n\0"));
+	snprintf_P( cmd_printfBuff,sizeof(cmd_printfBuff),PSTR("  D{0..2} dname magp\r\n\0"));
 	FreeRTOS_write( &pdUART1, cmd_printfBuff, sizeof(cmd_printfBuff) );
 #endif
 
@@ -177,9 +184,9 @@ static void cmdHelpFunction(void)
 	FreeRTOS_write( &pdUART1, cmd_printfBuff, sizeof(cmd_printfBuff) );
 	snprintf_P( cmd_printfBuff,sizeof(cmd_printfBuff),PSTR("  dcons hhmm1,hhmm2,chVA,chVB\r\n\0"));
 	FreeRTOS_write( &pdUART1, cmd_printfBuff, sizeof(cmd_printfBuff) );
-	snprintf_P( cmd_printfBuff,sizeof(cmd_printfBuff),PSTR(" ccons { maxpb, pref, pbtest, maxPW }\r\n\0"));
+	snprintf_P( cmd_printfBuff,sizeof(cmd_printfBuff),PSTR("  ccons { maxpb, pref, pbtest, maxPW }\r\n\0"));
 	FreeRTOS_write( &pdUART1, cmd_printfBuff, sizeof(cmd_printfBuff) );
-	snprintf_P( cmd_printfBuff,sizeof(cmd_printfBuff),PSTR(" fuzzy\r\n\0"));
+	snprintf_P( cmd_printfBuff,sizeof(cmd_printfBuff),PSTR("  fuzzy\r\n\0"));
 	FreeRTOS_write( &pdUART1, cmd_printfBuff, sizeof(cmd_printfBuff) );
 #endif
 
@@ -195,7 +202,7 @@ static void cmdHelpFunction(void)
 	FreeRTOS_write( &pdUART1, cmd_printfBuff, sizeof(cmd_printfBuff) );
 #endif
 
-#ifdef OSE_3CH
+#if defined(OSE_3CH) || defined(UTE_8CH)
 	snprintf_P( cmd_printfBuff,sizeof(cmd_printfBuff),PSTR("  (SM) led {0|1},gprspwr {0|1},gprssw {0|1},termpwr {0|1},sensorpwr {0|1},analogpwr {0|1}\r\n\0"));
 	FreeRTOS_write( &pdUART1, cmd_printfBuff, sizeof(cmd_printfBuff) );
 #endif
@@ -233,7 +240,7 @@ static void cmdHelpFunction(void)
 	FreeRTOS_write( &pdUART1, cmd_printfBuff, sizeof(cmd_printfBuff) );
 #endif
 
-#ifdef OSE_3CH
+#if defined(OSE_3CH) || defined(UTE_3CH)
 	snprintf_P( cmd_printfBuff,sizeof(cmd_printfBuff),PSTR("  rtc, adc {ch}, frame\r\n\0"));
 	FreeRTOS_write( &pdUART1, cmd_printfBuff, sizeof(cmd_printfBuff) );
 #endif
@@ -256,6 +263,12 @@ static void cmdResetFunction(void)
 	// Reset memory ??
 	if (!strcmp_P( strupr(argv[1]), PSTR("MEMORY\0"))) {
 		FF_rewind();
+	}
+
+	// Reset default ??
+	if (!strcmp_P( strupr(argv[1]), PSTR("DEFAULT\0"))) {
+		u_loadDefaults();
+		u_saveSystemParams();
 	}
 
 	cmdClearScreen();
@@ -598,9 +611,16 @@ StatBuffer_t pxFFStatBuffer;
 		pos += snprintf_P( &cmd_printfBuff[pos], sizeof(cmd_printfBuff), PSTR("%s=%.02f,"),systemVars.aChName[channel],Cframe.analogIn[channel] );
 	}
 
+	pos += snprintf_P( &cmd_printfBuff[pos], sizeof(cmd_printfBuff), PSTR("\r\n\0"));
+	FreeRTOS_write( &pdUART1, cmd_printfBuff, sizeof(cmd_printfBuff) );
+
 	// Valores digitales
+	pos = snprintf_P( cmd_printfBuff, sizeof(cmd_printfBuff), PSTR("  "));
 	for ( channel = 0; channel < NRO_DIGITAL_CHANNELS; channel++) {
-		pos += snprintf_P( &cmd_printfBuff[pos], sizeof(cmd_printfBuff), PSTR("%sP=%.02f,%sL=%d,"), systemVars.dChName[0],Cframe.dIn.pulses[0],systemVars.dChName[0],Cframe.dIn.level[0]);	}
+		pos += snprintf_P( &cmd_printfBuff[pos], sizeof(cmd_printfBuff), PSTR("[%s:P=%.02f,L=%d,T=%d]"), systemVars.dChName[channel],Cframe.dIn.pulses[channel],Cframe.dIn.level[channel],Cframe.dIn.secsUp[channel]);
+	}
+	pos += snprintf_P( &cmd_printfBuff[pos], sizeof(cmd_printfBuff), PSTR("\r\n\0"));
+
 #endif
 
 #ifdef OSE_3CH
@@ -660,7 +680,7 @@ u08 argc;
 		return;
 	}
 
-#ifdef OSE_3CH
+#if defined(OSE_3CH) || defined(UTE_8CH)
 	// ADC
 	// read adc channel
 	if (!strcmp_P( strupr(argv[1]), PSTR("ADC\0"))) {
@@ -706,7 +726,7 @@ u08 argc;
 	// FRAME
 	if (!strcmp_P( strupr(argv[1]), PSTR("FRAME\0")) && ( systemVars.wrkMode == WK_SERVICE) ) {
 
-#ifdef OSE_3CH
+#if defined(OSE_3CH) || defined(UTE_8CH)
 		while ( xTaskNotify(xHandle_tkAIn, TK_READ_FRAME , eSetBits ) != pdPASS ) {
 			vTaskDelay( ( TickType_t)( 100 / portTICK_RATE_MS ) );
 		}
@@ -961,20 +981,6 @@ u08 argc;
 		return;
 	}
 
-#ifdef UTE_8CH
-	if (!strcmp_P( strupr(argv[1]), PSTR("D2\0"))) {
-		u_configDigitalCh( 2, argv[2],argv[3]);
-		pv_snprintfP_OK();
-		return;
-	}
-
-	if (!strcmp_P( strupr(argv[1]), PSTR("D3\0"))) {
-		u_configDigitalCh( 3, argv[2],argv[3]);
-		pv_snprintfP_OK();
-		return;
-	}
-#endif
-
 	// TIMERPOLL
 	if (!strcmp_P( strupr(argv[1]), PSTR("TIMERPOLL\0"))) {
 		retS = u_configTimerPoll(argv[2]);
@@ -1169,7 +1175,9 @@ u08 argc;
 		retS ? pv_snprintfP_OK() : 	pv_snprintfP_ERR();
 		return;
 	}
+#endif
 
+#if defined(OSE_3CH) || defined(UTE_8CH)
 	// sensorPWR
 	if (!strcmp_P( strupr(argv[1]), PSTR("SENSORPWR\0")) && ( systemVars.wrkMode == WK_SERVICE) ) {
 		retS = MCP_setSensorPwr( (u08)atoi(argv[2]) );
@@ -1185,6 +1193,7 @@ u08 argc;
 	}
 #endif
 
+#if defined(OSE_3CH) || defined(OSE_POZOS)
 	// ClearQ
 	if (!strcmp_P( strupr(argv[1]), PSTR("CLEARQ\0")) && ( systemVars.wrkMode == WK_SERVICE) ) {
 		if ( atoi(argv[2]) == 0 ) {
@@ -1199,6 +1208,7 @@ u08 argc;
 		}
 		return;
 	}
+#endif
 
 	// MCP
 	// write mcp 0|1|2 addr value
@@ -1673,6 +1683,8 @@ void pv_cmdRdDIN(void)
 s08 retS = FALSE;
 u08 pin;
 
+#if defined(OSE_3CH) || defined (OSE_POZOS)
+
 	switch( atoi(argv[2] )) {
 	case 0:
 		retS = MCP_queryDin0(&pin);
@@ -1681,6 +1693,24 @@ u08 pin;
 		retS = MCP_queryDin1(&pin);
 		break;
 	}
+
+#endif
+
+#ifdef UTE_8CH
+
+	retS = TRUE;
+	switch( atoi(argv[2] )) {
+	case 0:
+		pin = ( D0_LV_PIN & _BV(D0_LV) ) >> D0_LV;
+		break;
+	case 1:
+		//pin = ( D1_LV_PIN & _BV(D1_LV) ) >> D1_LV;
+		pin = ( D2_LV_PIN & _BV(D2_LV) ) >> D2_LV;
+		break;
+	}
+
+#endif
+
 	if (retS ) {
 		snprintf_P( cmd_printfBuff,sizeof(cmd_printfBuff),PSTR("OK\r\nDIN%d=%d\r\n\0"),atoi(argv[2]),pin);
 	} else {
@@ -1695,7 +1725,7 @@ void pv_cmdRdTERMSW(void)
 {
 u08 pin;
 
-#ifdef OSE_POZOS
+#if defined(OSE_POZOS) || defined(UTE_8CH)
 	return;
 #endif
 
@@ -1763,11 +1793,24 @@ u08 pos, channel;
 		for ( channel = 0; channel < NRO_ANALOG_CHANNELS; channel++) {
 			pos += snprintf_P( &cmd_printfBuff[pos], ( sizeof(cmd_printfBuff) - pos ), PSTR("%s=%.2f,"),systemVars.aChName[channel],Aframe.analogIn[channel] );
 		}
-		pos += snprintf_P( &cmd_printfBuff[pos], ( sizeof(cmd_printfBuff) - pos ), PSTR("%sP=%.2f,%sL=%d,"), systemVars.dChName[0],Aframe.dIn.pulses[0],systemVars.dChName[0],Aframe.dIn.level[0]);
-		pos += snprintf_P( &cmd_printfBuff[pos], ( sizeof(cmd_printfBuff) - pos ), PSTR("%sP=%.2f,%sL=%d"), systemVars.dChName[1],Aframe.dIn.pulses[1],systemVars.dChName[1],Aframe.dIn.level[1]);
+
+		for ( channel = 0; channel < NRO_DIGITAL_CHANNELS; channel++) {
+			pos += snprintf_P( &cmd_printfBuff[pos], ( sizeof(cmd_printfBuff) - pos ), PSTR("%sP=%.2f,"), systemVars.dChName[channel],Aframe.dIn.pulses[channel]);
+		}
 		// Bateria
 		pos += snprintf_P( &cmd_printfBuff[pos], ( sizeof(cmd_printfBuff) - pos ), PSTR(",bt=%.2f}\r\n\0"),Aframe.batt );
 
+#endif
+
+#ifdef OSE_8CH
+		for ( channel = 0; channel < NRO_ANALOG_CHANNELS; channel++) {
+			pos += snprintf_P( &cmd_printfBuff[pos], ( sizeof(cmd_printfBuff) - pos ), PSTR("%s=%.2f,"),systemVars.aChName[channel],Aframe.analogIn[channel] );
+		}
+
+		for ( channel = 0; channel < NRO_DIGITAL_CHANNELS; channel++) {
+			pos += snprintf_P( &cmd_printfBuff[pos], ( sizeof(cmd_printfBuff) - pos ), PSTR("%sP=%.2f,"), systemVars.dChName[channel],Aframe.dIn.pulses[channel],systemVars.dChName[channel],Aframe.dIn.level[channel]);
+
+		}
 #endif
 
 #ifdef OSE_POZOS

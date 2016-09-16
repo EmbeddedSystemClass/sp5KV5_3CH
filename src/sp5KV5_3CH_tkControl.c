@@ -412,23 +412,45 @@ static s08 led_MODEM = OFF;
 			// Prendo
 			led_KA = ON;
 			MCP_setLed_LogicBoard(1);		// Led placa logica
+
+#if defined(OSE_3CH) || defined (OSE_POZOS )
 			cbi(LED_KA_PORT, LED_KA_BIT);	// Led placa analogica ( kalive )
+#endif
+#ifdef UTE_8CH
+			sbi(LED_KA_PORT, LED_KA_BIT);	// Led placa analogica ( kalive )
+#endif
+
 		} else if ( (modo == OFF) && ( led_KA == ON) ) {
 			// Apago
 			led_KA = OFF;
 			MCP_setLed_LogicBoard(0);		// Led placa logica
+#if defined(OSE_3CH) || defined (OSE_POZOS )
 			sbi(LED_KA_PORT, LED_KA_BIT);	// Led placa analogica ( kalive )
+#endif
+#ifdef UTE_8CH
+			cbi(LED_KA_PORT, LED_KA_BIT);	// Led placa analogica ( kalive )
+#endif
 		}
 		break;
 	case LED_MODEM:
 		if ( (modo == ON) && ( led_MODEM == OFF) ) {
 			// Prendo
 			led_MODEM = ON;
+#if defined(OSE_3CH) || defined (OSE_POZOS )
 			cbi(LED_MODEM_PORT, LED_MODEM_BIT);
+#endif
+#ifdef UTE_8CH
+			sbi(LED_MODEM_PORT, LED_MODEM_BIT);
+#endif
 		} else if ( (modo == OFF) && ( led_MODEM == ON) ) {
 			// Apago
 			led_MODEM = OFF;
+#if defined(OSE_3CH) || defined (OSE_POZOS )
 			sbi(LED_MODEM_PORT, LED_MODEM_BIT);
+#endif
+#ifdef UTE_8CH
+			cbi(LED_MODEM_PORT, LED_MODEM_BIT);
+#endif
 		}
 		break;
 	}

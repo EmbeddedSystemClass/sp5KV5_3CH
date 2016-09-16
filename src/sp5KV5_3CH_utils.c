@@ -282,15 +282,24 @@ u08 channel;
 
 #ifdef OSE_3CH
 	strncpy_P(systemVars.dlgId, PSTR("DEF000\0"),DLGID_LENGTH);
+	strncpy_P(systemVars.serverScript, PSTR("/cgi-bin/sp5K/sp5K.pl\0"),SCRIPT_LENGTH);
+	strncpy_P(systemVars.serverAddress, PSTR("192.168.0.9\0"),IP_LENGTH);
+#endif
+
+#ifdef UTE_8CH
+	strncpy_P(systemVars.dlgId, PSTR("DEF000\0"),DLGID_LENGTH);
+	strncpy_P(systemVars.serverScript, PSTR("/cgi-bin/sp5K/sp5KV2.pl\0"),SCRIPT_LENGTH);
+	strncpy_P(systemVars.serverAddress, PSTR("192.168.0.99\0"),IP_LENGTH);
 #endif
 
 #ifdef OSE_POZOS
+	strncpy_P(systemVars.serverScript, PSTR("/cgi-bin/sp5K/sp5K.pl\0"),SCRIPT_LENGTH);
+	strncpy_P(systemVars.serverAddress, PSTR("192.168.0.9\0"),IP_LENGTH);
 	strncpy_P(systemVars.dlgId, PSTR("PZ000\0"),DLGID_LENGTH);
 #endif
 
 	strncpy_P(systemVars.serverPort, PSTR("80\0"),PORT_LENGTH	);
 	strncpy_P(systemVars.passwd, PSTR("spymovil123\0"),PASSWD_LENGTH);
-	strncpy_P(systemVars.serverScript, PSTR("/cgi-bin/sp5K/sp5K.pl\0"),SCRIPT_LENGTH);
 
 	systemVars.csq = 0;
 	systemVars.dbm = 0;
@@ -304,8 +313,6 @@ u08 channel;
 	// DEBUG
 	systemVars.debugLevel = D_NONE;
 	systemVars.log = ON;
-
-	strncpy_P(systemVars.serverAddress, PSTR("192.168.0.9\0"),IP_LENGTH);
 
 	systemVars.pwrSave = modoPWRSAVE_OFF;
 	systemVars.pwrSaveStartTime =u_convertHHMM2min(2230);	// 22:30 PM
