@@ -170,9 +170,9 @@ static void cmdHelpFunction(void)
 #endif
 
 #ifdef UTE_8CH
-	snprintf_P( cmd_printfBuff,sizeof(cmd_printfBuff),PSTR("  A{0..8} aname imin imax mmin mmax\r\n\0"));
+	snprintf_P( cmd_printfBuff,sizeof(cmd_printfBuff),PSTR("  A{0..7} aname imin imax mmin mmax\r\n\0"));
 	FreeRTOS_write( &pdUART1, cmd_printfBuff, sizeof(cmd_printfBuff) );
-	snprintf_P( cmd_printfBuff,sizeof(cmd_printfBuff),PSTR("  D{0..2} dname magp\r\n\0"));
+	snprintf_P( cmd_printfBuff,sizeof(cmd_printfBuff),PSTR("  D{0..1} dname magp\r\n\0"));
 	FreeRTOS_write( &pdUART1, cmd_printfBuff, sizeof(cmd_printfBuff) );
 #endif
 
@@ -330,6 +330,7 @@ StatBuffer_t pxFFStatBuffer;
 	pos += snprintf_P( &cmd_printfBuff[pos],sizeof(cmd_printfBuff),PSTR("%02d:%02d:%02d\r\n\0"),rtcDateTime.hour,rtcDateTime.min, rtcDateTime.sec );
 	FreeRTOS_write( &pdUART1, cmd_printfBuff, sizeof(cmd_printfBuff) );
 
+#if ( ! defined (SERIAL))
 	/* SERVER */
 	snprintf_P( cmd_printfBuff,sizeof(cmd_printfBuff),PSTR(">Server:\r\n\0"));
 	FreeRTOS_write( &pdUART1, cmd_printfBuff, sizeof(cmd_printfBuff) );
@@ -410,6 +411,8 @@ StatBuffer_t pxFFStatBuffer;
  	if ( systemVars.termsw == 1 ) { pos += snprintf_P( &cmd_printfBuff[pos],sizeof(cmd_printfBuff),PSTR("term=ON\r\n\0")); }
  	if ( systemVars.termsw == 0 ) { pos += snprintf_P( &cmd_printfBuff[pos],sizeof(cmd_printfBuff),PSTR("term=OFF\r\n\0"));}
 	FreeRTOS_write( &pdUART1, cmd_printfBuff, sizeof(cmd_printfBuff) );
+
+#endif
 
 	// SYSTEM ---------------------------------------------------------------------------------------
 	snprintf_P( cmd_printfBuff,sizeof(cmd_printfBuff),PSTR(">System:\r\n\0"));
@@ -943,25 +946,25 @@ u08 argc;
 		return;
 	}
 
-	if (!strcmp_P( strupr(argv[3]), PSTR("A4\0"))) {
+	if (!strcmp_P( strupr(argv[1]), PSTR("A4\0"))) {
 		retS = u_configAnalogCh( 4, argv[2],argv[3],argv[4],argv[5],argv[6]);
 		retS ? pv_snprintfP_OK() : 	pv_snprintfP_ERR();
 		return;
 	}
 
-	if (!strcmp_P( strupr(argv[3]), PSTR("A5\0"))) {
+	if (!strcmp_P( strupr(argv[1]), PSTR("A5\0"))) {
 		retS = u_configAnalogCh( 5, argv[2],argv[3],argv[4],argv[5],argv[6]);
 		retS ? pv_snprintfP_OK() : 	pv_snprintfP_ERR();
 		return;
 	}
 
-	if (!strcmp_P( strupr(argv[3]), PSTR("A6\0"))) {
+	if (!strcmp_P( strupr(argv[1]), PSTR("A6\0"))) {
 		retS = u_configAnalogCh( 6, argv[2],argv[3],argv[4],argv[5],argv[6]);
 		retS ? pv_snprintfP_OK() : 	pv_snprintfP_ERR();
 		return;
 	}
 
-	if (!strcmp_P( strupr(argv[3]), PSTR("A7\0"))) {
+	if (!strcmp_P( strupr(argv[1]), PSTR("A7\0"))) {
 		retS = u_configAnalogCh( 7, argv[2],argv[3],argv[4],argv[5],argv[6]);
 		retS ? pv_snprintfP_OK() : 	pv_snprintfP_ERR();
 		return;

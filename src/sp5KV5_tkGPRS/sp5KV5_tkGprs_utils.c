@@ -505,6 +505,7 @@ char *s;
 		ret = 0;
 		goto quit;
 		break;
+	}
 #endif
 
 #ifdef UTE_8CH

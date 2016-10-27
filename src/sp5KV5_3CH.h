@@ -54,8 +54,8 @@
 
 // DEFINICION DEL TIPO DE SISTEMA
 //----------------------------------------------------------------------------
-#define SP5K_REV "5.0.1"
-#define SP5K_DATE "@ 20160916"
+#define SP5K_REV "5.0.3"
+#define SP5K_DATE "@ 20161027"
 
 #define SP5K_MODELO "sp5KV3 HW:avr1284P R5.0"
 #define SP5K_VERSION "FW:FRTOS8"
@@ -67,9 +67,10 @@
 //----------------------------------------------------------------------------
 // PERSONALIZACION DEL FIRMWARE
 
-#define UTE_8CH
-//#define CONSIGNA
-//#define OSE_3CH
+//#define UTE_8CH
+//#define SERIAL
+#define CONSIGNA
+#define OSE_3CH
 //#define OSE_POZOS
 
 //----------------------------------------------------------------------------

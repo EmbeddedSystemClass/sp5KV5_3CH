@@ -8,6 +8,14 @@
  * git remote add REM_SP5KV4 https://github.com/ppeluffo/sp5KV4.git
  * git push -u REM_SP5KV4 master
  * -------------------------------------------------------------------------------------------------------
+ * VERSION 5.0.2 @ 2016-09-23:
+ * ---------------------------
+ * 1- Pongo un define SERIAL que se usa en conjunto con el define UTE_8CH.
+ * Lo que hace es que cuando el log = OFF, igual loguea los frames relevados y les pone
+ * un tag para que sean reconocidos por el software del server.
+ * Por otro lado, el modem lo deja siempre en estado APAGADO.
+ * Tampoco guardo en memoria.
+ *
  * VERSION 5.0.1 @ 2016-09-08: POZOS
  * ---------------------------------
  * Los sensores miden hasta 700cms, y los pulsos son de 58us/cms, por lo tanto el ancho del pulso
@@ -16,7 +24,6 @@
  * En tkRange::pv_ping elimino el control de maxRange y modifico para pasar la distancia por parametro
  * y retornar el status de la medida.
  * En globalStatus reporto todos los errores:
- *
  *
  * VERSION 5.0.0 @ 2016-08-08:
  * ---------------------------

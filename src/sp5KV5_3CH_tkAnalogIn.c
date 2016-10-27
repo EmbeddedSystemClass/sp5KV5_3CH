@@ -59,6 +59,7 @@ static struct {
 static u08 tkAIN_state = anST_A00;				// Estado
 static double rAIn[NRO_ANALOG_CHANNELS + 1];	// Almaceno los datos de conversor A/D
 static frameData_t Aframe;
+static s08 sensoresPrendidos = FALSE;
 
 #define CICLOS_POLEO		3		// ciclos de poleo para promediar.
 #define SECS2PWRSETTLE 		3
@@ -68,6 +69,8 @@ void  pv_ANtimerCallback( TimerHandle_t pxTimer );
 static void pv_ANgetNextEvent(void);
 static void pv_AINfsm(void);
 static void pv_AINprintExitMsg(u08 code);
+static void pv_PrenderSensores(void);
+static void pv_ApagarSensores(void);
 
 //--------------------------------------------------------------------------------------
  void tkAnalogIn(void * pvParameters)
@@ -269,11 +272,8 @@ static int anTR_00(void)
 	AN_counters.secs4poll = 15;
 	AN_counters.secs4save = 15;
 
-	// PwrOn de sensores: solo en modo continuo.
-	if ( systemVars.pwrMode == PWR_CONTINUO ) {
-		MCP_setSensorPwr( 1 );
-		MCP_setAnalogPwr( 1 );
-	}
+	// PwrOn de sensores:
+	pv_PrenderSensores();
 
 	pv_AINprintExitMsg(0);
 	return(anST_A01);
@@ -289,11 +289,7 @@ static int anTR_01(void)
 	AN_counters.secs4poll = 15;
 	AN_counters.secs4save = 15;
 
-	// PwrOn de sensores: solo en modo continuo
-	if ( systemVars.pwrMode == PWR_CONTINUO ) {
-		MCP_setSensorPwr( 1 );
-		MCP_setAnalogPwr( 1 );
-	}
+	pv_PrenderSensores();
 
 	pv_AINprintExitMsg(1);
 	return(anST_A01);
@@ -314,13 +310,16 @@ static int anTR_02(void)
 	AN_counters.secs4poll = 60;
 	AN_counters.secs4save = 60;
 
-	// Si estoy en modo discreto, debo prender la fuente y esperar que se asiente.
-	if ( systemVars.pwrMode == PWR_DISCRETO ) {
-		MCP_setSensorPwr( 1 );
-		MCP_setAnalogPwr( 1 );
-		AN_counters.cTimer = SECS2PWRSETTLE;
-	} else {
-		AN_counters.cTimer = 0;
+	// Por las dudas, siempre prendo
+	pv_PrenderSensores();
+	AN_counters.cTimer = SECS2PWRSETTLE;
+
+	// Aqui los sensores deben estar prendidos.
+	// Si por alguna razon los sensores estan apagados los prendo.
+	if ( ! sensoresPrendidos ) {
+		snprintf_P( aIn_printfBuff,sizeof(aIn_printfBuff),PSTR("WARN: Sensores apagados !!!\r\n\0"));
+		FreeRTOS_write( &pdUART1, aIn_printfBuff, sizeof(aIn_printfBuff) );
+		pv_PrenderSensores();
 	}
 
 	pv_AINprintExitMsg(2);
@@ -330,17 +329,15 @@ static int anTR_02(void)
 static int anTR_03(void)
 {
 
-	// Inicio un poleo.
+	// Inicio un poleo en modo normal.( pautado )
+	// Si estoy en modo discreto debo prender la fuente.
+	// En modo continuo, ya debería estar prendida.
+
 	AN_flags.start2poll = FALSE;
 
-	// Si estoy en modo discreto, debo prender la fuente y esperar que se asiente.
-	if ( systemVars.pwrMode == PWR_DISCRETO ) {
-		MCP_setSensorPwr( 1 );
-		MCP_setAnalogPwr( 1 );
-		AN_counters.cTimer = SECS2PWRSETTLE;
-	} else {
-		AN_counters.cTimer = 0;
-	}
+	// Por las dudas siempre prendo.
+	pv_PrenderSensores();
+	AN_counters.cTimer = SECS2PWRSETTLE;
 
 	pv_AINprintExitMsg(3);
 	return(anST_A02);
@@ -348,7 +345,7 @@ static int anTR_03(void)
 /*------------------------------------------------------------------------------------*/
 static int anTR_04(void)
 {
-	// Espero que se asiente la fuente de los sensores
+	// En modo discreto prendi la fuente entonces aqui espero que se asiente la fuente de los sensores
 
 	// Espero 1 segundo
 	vTaskDelay( ( TickType_t)( 1000 / portTICK_RATE_MS ) );
@@ -365,6 +362,8 @@ static int anTR_05(void)
 s08 retS;
 u16 adcRetValue;
 u08 i;
+
+	// Inicio a polear. Prendo el ADC con una conversion dummy
 
 	// Init Data Structure
 	for ( i=0; i < (NRO_ANALOG_CHANNELS + 1); i++ )
@@ -397,31 +396,61 @@ u08 i;
 
 #ifdef OSE_3CH
 	// Genero un poleo.
+	adcRetValue = 0;
 	retS = ADS7827_readCh0( &adcRetValue);	// AIN0->ADC3;
-	rAIn[0] += adcRetValue;
+	if ( retS ) {
+		rAIn[0] += adcRetValue;
+	} else {
+		snprintf_P( aIn_printfBuff,sizeof(aIn_printfBuff),PSTR("ERROR: ch_0,adc_3\r\n\0"));
+		u_debugPrint(D_DATA, aIn_printfBuff, sizeof(aIn_printfBuff) );
+	}
 	snprintf_P( aIn_printfBuff,sizeof(aIn_printfBuff),PSTR("\tch_0,adc_3,val=%d,r0=%.0f\r\n\0"),adcRetValue, rAIn[0]);
 	u_debugPrint(D_DATA, aIn_printfBuff, sizeof(aIn_printfBuff) );
 
+	adcRetValue = 0;
 	retS = ADS7827_readCh1( &adcRetValue); // AIN1->ADC5;
-	rAIn[1] += adcRetValue;
+	if ( retS ) {
+		rAIn[1] += adcRetValue;
+	} else {
+		snprintf_P( aIn_printfBuff,sizeof(aIn_printfBuff),PSTR("ERROR: ch_1,adc_5\r\n\0"));
+		u_debugPrint(D_DATA, aIn_printfBuff, sizeof(aIn_printfBuff) );
+	}
 	snprintf_P( aIn_printfBuff,sizeof(aIn_printfBuff),PSTR("\tch_1,adc_5,val=%d,r1=%.0f\r\n\0"),adcRetValue, rAIn[1]);
 	u_debugPrint(D_DATA, aIn_printfBuff, sizeof(aIn_printfBuff) );
 
+	adcRetValue = 0;
 	retS = ADS7827_readCh2( &adcRetValue); // AIN2->ADC7;
-	rAIn[2] += adcRetValue;
+	if ( retS ) {
+		rAIn[2] += adcRetValue;
+	} else {
+		snprintf_P( aIn_printfBuff,sizeof(aIn_printfBuff),PSTR("ERROR: ch_2,adc_7\r\n\0"));
+		u_debugPrint(D_DATA, aIn_printfBuff, sizeof(aIn_printfBuff) );
+	}
 	snprintf_P( aIn_printfBuff,sizeof(aIn_printfBuff),PSTR("\tch_2,adc_7,val=%d,r1=%.0f\r\n\0"), adcRetValue, rAIn[2]);
 	u_debugPrint(D_DATA, aIn_printfBuff, sizeof(aIn_printfBuff) );
 
+	adcRetValue = 0;
 	retS = ADS7827_readBatt( &adcRetValue); // BATT->ADC1;
-	rAIn[3] += adcRetValue;
+	if ( retS ) {
+		rAIn[3] += adcRetValue;
+	} else {
+		snprintf_P( aIn_printfBuff,sizeof(aIn_printfBuff),PSTR("ERROR: ch_3,adc_1\r\n\0"));
+		u_debugPrint(D_DATA, aIn_printfBuff, sizeof(aIn_printfBuff) );
+	}
 	snprintf_P( aIn_printfBuff,sizeof(aIn_printfBuff),PSTR("\tch_3,adc_1,val=%d,r1=%.0f\r\n\0"), adcRetValue, rAIn[3]);
 	u_debugPrint(D_DATA, aIn_printfBuff, sizeof(aIn_printfBuff) );
 #endif
 
 #ifdef UTE_8CH
 	for ( i = 0; i < NRO_ANALOG_CHANNELS; i++ ) {
+		adcRetValue = 0;
 		retS = ADS7828_read(i, &adcRetValue);
-		rAIn[i] += adcRetValue;
+		if ( retS ) {
+			rAIn[i] += adcRetValue;
+		} else {
+			snprintf_P( aIn_printfBuff,sizeof(aIn_printfBuff),PSTR("ERROR: ch_%02d,adc_%02d\r\n\0"),i,i);
+			u_debugPrint(D_DATA, aIn_printfBuff, sizeof(aIn_printfBuff) );
+		}
 		snprintf_P( aIn_printfBuff,sizeof(aIn_printfBuff),PSTR("\tch_%02d,adc_%02d,val=%d,r%02d=%.0f\r\n\0"),i,i,adcRetValue,i,rAIn[i]);
 		u_debugPrint(D_DATA, aIn_printfBuff, sizeof(aIn_printfBuff) );
 	}
@@ -453,8 +482,7 @@ StatBuffer_t pxFFStatBuffer;
 
 	//  En modo discreto debo apagar sensores
 	if ( systemVars.pwrMode == PWR_DISCRETO )  {
-		MCP_setSensorPwr( 0 );
-		MCP_setAnalogPwr( 0 );
+		pv_ApagarSensores();
 	}
 
 	// Promedio canales analogicos y bateria
@@ -522,7 +550,7 @@ StatBuffer_t pxFFStatBuffer;
 	for ( i = 0; i < NRO_DIGITAL_CHANNELS; i++ ) {
 		Aframe.dIn.pulses[i] *=  systemVars.magPP[i];
 	}
-
+#if !defined(SERIAL)
 	// Guardo en BD ?
 	if ( AN_flags.saveFrameInBD ) {
 		AN_flags.saveFrameInBD = FALSE;
@@ -538,6 +566,7 @@ StatBuffer_t pxFFStatBuffer;
 		}
 		u_debugPrint(D_BASIC, aIn_printfBuff, sizeof(aIn_printfBuff) );
 	}
+#endif
 
 #ifdef UTE_8CH
 	// Imprimo el frame.
@@ -549,13 +578,28 @@ StatBuffer_t pxFFStatBuffer;
 	for ( channel = 0; channel < NRO_ANALOG_CHANNELS; channel++) {
 		pos += snprintf_P( &aIn_printfBuff[pos], ( sizeof(aIn_printfBuff) - pos ), PSTR(",%s=%.02f"),systemVars.aChName[channel],Aframe.analogIn[channel] );
 	}
+
+#ifdef SERIAL
+	// Valores digitales
+	for ( channel = 0; channel < NRO_DIGITAL_CHANNELS; channel++) {
+		pos += snprintf_P( &aIn_printfBuff[pos], ( sizeof(aIn_printfBuff) - pos ), PSTR(",%s_P=%.02f,%s_L=%d"), systemVars.dChName[channel],Aframe.dIn.pulses[channel], systemVars.dChName[channel],Aframe.dIn.level[channel] );
+	}
+#else
 	// Valores digitales
 	for ( channel = 0; channel < NRO_DIGITAL_CHANNELS; channel++) {
 		pos += snprintf_P( &aIn_printfBuff[pos], ( sizeof(aIn_printfBuff) - pos ), PSTR(",%s{P=%.02f,L=%d,T=%d}"), systemVars.dChName[channel],Aframe.dIn.pulses[channel],Aframe.dIn.level[channel],Aframe.dIn.secsUp[channel] );
 	}
+#endif
 
 	pos += snprintf_P( &aIn_printfBuff[pos], ( sizeof(aIn_printfBuff) - pos ), PSTR("}\r\n\0") );
+
 	u_logPrint (aIn_printfBuff, sizeof(aIn_printfBuff) );
+
+#ifdef SERIAL
+	if ( systemVars.log == OFF ) {
+		FreeRTOS_write( &pdUART1, aIn_printfBuff, sizeof(aIn_printfBuff) );
+	}
+#endif
 
 #endif
 
@@ -625,6 +669,22 @@ void u_readDataFrame (frameData_t *dFrame)
 	memcpy(dFrame, &Aframe, sizeof(Aframe) );
 }
 /*------------------------------------------------------------------------------------*/
-
+static void pv_PrenderSensores(void)
+{
+	sensoresPrendidos = TRUE;
+	MCP_setSensorPwr( 1 );
+	MCP_setAnalogPwr( 1 );
+//	snprintf_P( aIn_printfBuff,sizeof(aIn_printfBuff),PSTR("DEBUG:: Prendo sensores\r\n\0"));
+//	FreeRTOS_write( &pdUART1, aIn_printfBuff, sizeof(aIn_printfBuff) );
+}
+/*------------------------------------------------------------------------------------*/
+static void pv_ApagarSensores(void)
+{
+	sensoresPrendidos = FALSE;
+	MCP_setSensorPwr( 0 );
+	MCP_setAnalogPwr( 0 );
+//	snprintf_P( aIn_printfBuff,sizeof(aIn_printfBuff),PSTR("DEBUG:: Apago sensores\r\n\0"));
+//	FreeRTOS_write( &pdUART1, aIn_printfBuff, sizeof(aIn_printfBuff) );
+}
 #endif
 

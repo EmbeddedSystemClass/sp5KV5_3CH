@@ -285,6 +285,10 @@ u16 timer;
 		break;
 	}
 
+#ifdef SERIAL
+	GPRS_stateVars.counters.awaitSecs = 0xFFFF;
+#endif
+
 	timer = (u16)(GPRS_stateVars.counters.awaitSecs);
 	tickCount = xTaskGetTickCount();
 	snprintf_P( gprs_printfBuff,sizeof(gprs_printfBuff),PSTR(".[%06lu] Modem off: Await %u secs.\r\n\0"),tickCount,timer);

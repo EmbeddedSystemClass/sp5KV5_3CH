@@ -195,6 +195,11 @@ int i;
 	systemVars.timerPoll = 60;			// Poleo c/1 minutos
 #endif
 
+//#ifdef SERIAL
+//	systemVars.debugLevel = D_NONE;
+//	systemVars.log = OFF;
+//#endif
+
 	return(retS);
 
 }
@@ -289,7 +294,7 @@ u08 channel;
 #ifdef UTE_8CH
 	strncpy_P(systemVars.dlgId, PSTR("DEF000\0"),DLGID_LENGTH);
 	strncpy_P(systemVars.serverScript, PSTR("/cgi-bin/sp5K/sp5KV2.pl\0"),SCRIPT_LENGTH);
-	strncpy_P(systemVars.serverAddress, PSTR("192.168.0.99\0"),IP_LENGTH);
+	strncpy_P(systemVars.serverAddress, PSTR("192.168.1.9\0"),IP_LENGTH);
 #endif
 
 #ifdef OSE_POZOS
@@ -312,7 +317,11 @@ u08 channel;
 
 	// DEBUG
 	systemVars.debugLevel = D_NONE;
+#ifdef SERIAL
+	systemVars.log = OFF;
+#else
 	systemVars.log = ON;
+#endif
 
 	systemVars.pwrSave = modoPWRSAVE_OFF;
 	systemVars.pwrSaveStartTime =u_convertHHMM2min(2230);	// 22:30 PM

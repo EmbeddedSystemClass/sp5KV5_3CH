@@ -104,6 +104,10 @@ s08 loadParamStatus = FALSE;
 	pos += snprintf_P( &ctl_printfBuff[pos],sizeof(ctl_printfBuff),PSTR("+8AIN\0"));
 #endif
 
+#ifdef SERIAL
+	pos += snprintf_P( &ctl_printfBuff[pos],sizeof(ctl_printfBuff),PSTR("+SERIAL\0"));
+#endif
+
 	pos += snprintf_P( &ctl_printfBuff[pos],sizeof(ctl_printfBuff),PSTR("\r\n"));
 	FreeRTOS_write( &pdUART1, ctl_printfBuff, sizeof(ctl_printfBuff) );
 
