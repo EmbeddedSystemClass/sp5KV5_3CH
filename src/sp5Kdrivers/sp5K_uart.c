@@ -28,7 +28,8 @@ u16 bauddiv;
 
 	portENTER_CRITICAL();
 
-	bauddiv = 8;
+	bauddiv = 8;		// 115200
+	//bauddiv = 103;	// 9600
 	//
 	switch ( UARTx ) {
 	case pUART0:

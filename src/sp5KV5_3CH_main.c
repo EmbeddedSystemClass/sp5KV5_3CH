@@ -8,6 +8,15 @@
  * git remote add REM_SP5KV4 https://github.com/ppeluffo/sp5KV4.git
  * git push -u REM_SP5KV4 master
  * -------------------------------------------------------------------------------------------------------
+ * VERSION 5.0.4 @ 2016-10-31:
+ * ---------------------------
+ * Cambio el tipo de las magnitudes en systemVars de u08 a s18 para que por ej. en los canales
+ * de temperatura acepte numeros negativos y en presion minima 800.
+ *
+ * VERSION 5.0.3 @ 2016-10-27:
+ * ---------------------------
+ * Arreglo un bug que en modo continuo a veces no prendia los sensores y entonces media 0.
+
  * VERSION 5.0.2 @ 2016-09-23:
  * ---------------------------
  * 1- Pongo un define SERIAL que se usa en conjunto con el define UTE_8CH.

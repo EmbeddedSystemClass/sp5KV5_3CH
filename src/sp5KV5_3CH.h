@@ -54,8 +54,8 @@
 
 // DEFINICION DEL TIPO DE SISTEMA
 //----------------------------------------------------------------------------
-#define SP5K_REV "5.0.3"
-#define SP5K_DATE "@ 20161027"
+#define SP5K_REV "5.0.4"
+#define SP5K_DATE "@ 20161031"
 
 #define SP5K_MODELO "sp5KV3 HW:avr1284P R5.0"
 #define SP5K_VERSION "FW:FRTOS8"
@@ -67,10 +67,10 @@
 //----------------------------------------------------------------------------
 // PERSONALIZACION DEL FIRMWARE
 
-//#define UTE_8CH
-//#define SERIAL
-#define CONSIGNA
-#define OSE_3CH
+#define UTE_8CH
+#define SERIAL
+//#define CONSIGNA
+//#define OSE_3CH
 //#define OSE_POZOS
 
 //----------------------------------------------------------------------------
@@ -235,7 +235,7 @@ typedef struct {
 	// Configuracion de Canales analogicos
 	u08 Imin[NRO_ANALOG_CHANNELS];				// Coeficientes de conversion de I->magnitud (presion)
 	u08 Imax[NRO_ANALOG_CHANNELS];
-	u08 Mmin[NRO_ANALOG_CHANNELS];
+	s16 Mmin[NRO_ANALOG_CHANNELS];
 	double Mmax[NRO_ANALOG_CHANNELS];
 
 	// Configuracion de canales digitales

@@ -29,6 +29,10 @@ static char dIn_printfBuff[CHAR64];	// Buffer de impresion
 static dinData_t digIn;				// Estructura local donde cuento los pulsos.
 static float ticksUp0,ticksUp1;
 
+#define MAX_PULSESXSEC	4
+#define DEBOUNCE_TIME_MS 30
+#define LOOPTIME (( 1000 / MAX_PULSESXSEC ) - DEBOUNCE_TIME_MS )
+
 /*------------------------------------------------------------------------------------*/
 void tkDigitalIn(void * pvParameters)
 {
@@ -62,13 +66,13 @@ const TickType_t xFrequency = 25;
 		u_clearWdg(WDG_DIN);
 
 		// Espero 250ms ( hasta 4 pulsos por seg.)
-		vTaskDelay( ( TickType_t)( 250 / portTICK_RATE_MS ) );
+		vTaskDelay( ( TickType_t)( LOOPTIME / portTICK_RATE_MS ) );
 		//vTaskDelayUntil( &xLastWakeTime, xFrequency );
 		//xLastWakeTime = xTaskGetTickCount();
 
 		// Solo poleo las entradas en modo normal. En modo service no para
 		// poder manejarlas por los comandos de servicio.
-		if ( systemVars.wrkMode == WK_NORMAL) {
+		if ( ( systemVars.wrkMode == WK_NORMAL) || ( systemVars.wrkMode == WK_MONITOR_FRAME ) ) {
 			pv_pollQ();
 		}
 	}
@@ -185,7 +189,8 @@ static void pv_clearQ(void)
 #if defined(OSE_3CH) || defined (OSE_POZOS)
 	cbi(Q_PORT, Q0_CTL_PIN);
 	cbi(Q_PORT, Q1_CTL_PIN);
-	taskYIELD();
+	vTaskDelay( ( TickType_t)( DEBOUNCE_TIME_MS / portTICK_RATE_MS ) );
+	//taskYIELD();
 	//_delay_us(5);
 	//asm("nop");
 	sbi(Q_PORT, Q0_CTL_PIN);
@@ -198,7 +203,8 @@ static void pv_clearQ(void)
 	cbi(D2_CLR_PORT, D2_CLR);
 	cbi(D3_CLR_PORT, D3_CLR);
 
-	taskYIELD();
+	vTaskDelay( ( TickType_t)( DEBOUNCE_TIME_MS / portTICK_RATE_MS ) );
+	//taskYIELD();
 	//_delay_us(5);
 	//asm("nop");
 	sbi(D0_CLR_PORT, D0_CLR);
